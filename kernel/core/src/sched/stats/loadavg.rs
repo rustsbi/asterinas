@@ -4,11 +4,11 @@
 //!
 //! Reference: <https://github.com/torvalds/linux/blob/46132e3/kernel/sched/loadavg.c>
 
-use core::sync::atomic::{AtomicU64, Ordering::Relaxed};
+use core::sync::atomic::Ordering::Relaxed;
 
 use aster_util::fixed_point::FixedU32;
 use ostd::{
-    sync::RwLock,
+    sync::{RwLock, atomic::AtomicU64},
     timer::{self, TIMER_FREQ},
 };
 

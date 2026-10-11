@@ -14,6 +14,8 @@
 //! The slots are placed in the metadata pages mapped to a certain virtual
 //! address in the kernel space. So finding the metadata of a frame often
 //! comes with no costs since the translation is a simple arithmetic operation.
+//! Metadata pages below the first physical memory region have no backing memory.
+//! This keeps a large hole before RAM from consuming memory for unused metadata.
 
 pub(crate) mod mapping {
     //! The metadata of each physical page is linear mapped to fixed virtual addresses
@@ -43,12 +45,15 @@ use core::{
     cell::UnsafeCell,
     fmt::Debug,
     mem::{ManuallyDrop, MaybeUninit},
-    sync::atomic::{AtomicU64, Ordering},
+    ops::Range,
+    sync::atomic::Ordering,
 };
+
+use align_ext::AlignExt;
 
 use crate::{
     arch::mm::PagingConsts,
-    boot::memory_region::MemoryRegionType,
+    boot::memory_region::{MemoryRegion, MemoryRegionType},
     const_assert, info,
     mm::{
         CachePolicy, Infallible, PAGE_SIZE, Paddr, PageFlags, PageProperty, PrivilegedPageFlags,
@@ -58,13 +63,14 @@ use crate::{
         page_table::boot_pt,
     },
     panic::abort,
+    sync::atomic::AtomicU64,
     util::ops::range_difference,
 };
 
 /// The maximum number of bytes of the metadata of a frame.
 pub const FRAME_METADATA_MAX_SIZE: usize = META_SLOT_SIZE
     - size_of::<AtomicU64>()
-    - size_of::<FrameMetaVtablePtr>()
+    - size_of::<FrameMetaVtablePtr>().next_multiple_of(align_of::<AtomicU64>())
     - size_of::<AtomicU64>();
 /// The maximum alignment in bytes of the metadata of a frame.
 pub const FRAME_METADATA_MAX_ALIGN: usize = META_SLOT_SIZE;
@@ -207,7 +213,7 @@ pub(super) fn get_slot(paddr: Paddr) -> Result<&'static MetaSlot, GetFrameError>
     if !paddr.is_multiple_of(PAGE_SIZE) {
         return Err(GetFrameError::NotAligned);
     }
-    if paddr >= super::max_paddr() {
+    if paddr < super::min_paddr() || paddr >= super::max_paddr() {
         return Err(GetFrameError::OutOfBound);
     }
 
@@ -451,19 +457,14 @@ impl_frame_meta_for!(MetaPageMeta);
 /// This function should be called only once and only on the BSP,
 /// before any APs are started.
 pub(crate) unsafe fn init() -> Segment<MetaPageMeta> {
-    let max_paddr = {
-        let regions = &crate::boot::EARLY_INFO.get().unwrap().memory_regions;
-        regions
-            .iter()
-            .filter(|r| r.typ().is_physical())
-            .map(|r| r.base() + r.len())
-            .max()
-            .unwrap()
-    };
+    let regions = &crate::boot::EARLY_INFO.get().unwrap().memory_regions;
+    let paddr_range = tracked_paddr_range(regions);
+    let min_paddr = paddr_range.start;
+    let max_paddr = paddr_range.end;
 
     info!(
-        "Initializing frame metadata for physical memory up to {:x}",
-        max_paddr
+        "Initializing frame metadata for physical memory {:x?}",
+        paddr_range
     );
 
     // In RISC-V and AArch64, the boot page table has mapped the 512GB memory,
@@ -473,14 +474,14 @@ pub(crate) unsafe fn init() -> Segment<MetaPageMeta> {
     #[cfg(target_arch = "x86_64")]
     add_temp_linear_mapping(max_paddr);
 
-    let tot_nr_frames = max_paddr / page_size::<PagingConsts>(1);
+    let tot_nr_frames = paddr_range.len() / page_size::<PagingConsts>(1);
     let (nr_meta_pages, meta_pages) = alloc_meta_frames(tot_nr_frames);
 
     // Map the metadata frames.
     boot_pt::with_borrow(|boot_pt| {
         for i in 0..nr_meta_pages {
             let frame_paddr = meta_pages + i * PAGE_SIZE;
-            let vaddr = mapping::frame_to_meta::<PagingConsts>(0) + i * PAGE_SIZE;
+            let vaddr = mapping::frame_to_meta::<PagingConsts>(min_paddr) + i * PAGE_SIZE;
             let prop = PageProperty {
                 flags: PageFlags::RW,
                 cache: CachePolicy::Writeback,
@@ -493,6 +494,7 @@ pub(crate) unsafe fn init() -> Segment<MetaPageMeta> {
     .unwrap();
 
     // Now the metadata frames are mapped, we can initialize the metadata.
+    super::MIN_PADDR.store(min_paddr, Ordering::Relaxed);
     super::MAX_PADDR.store(max_paddr, Ordering::Relaxed);
 
     let meta_page_range = meta_pages..meta_pages + nr_meta_pages * PAGE_SIZE;
@@ -514,6 +516,22 @@ pub(crate) unsafe fn init() -> Segment<MetaPageMeta> {
     mark_unusable_ranges();
 
     Segment::from_unused(meta_page_range, |_| MetaPageMeta {}).unwrap()
+}
+
+fn tracked_paddr_range(regions: &[MemoryRegion]) -> Range<Paddr> {
+    let physical_regions = regions.iter().filter(|region| region.typ().is_physical());
+    let min_paddr = physical_regions
+        .clone()
+        .map(|region| region.base())
+        .min()
+        .unwrap();
+    let max_paddr = physical_regions.map(|region| region.end()).max().unwrap();
+
+    // Keep the original frame-to-metadata translation while ensuring that the
+    // first metadata slot starts at a virtual page boundary. At most one metadata
+    // page covers addresses before the first physical memory region.
+    const META_PAGE_COVERAGE: usize = PAGE_SIZE * (PAGE_SIZE / META_SLOT_SIZE);
+    min_paddr.align_down(META_PAGE_COVERAGE)..max_paddr
 }
 
 /// Returns whether the global frame allocator is initialized.
@@ -576,7 +594,8 @@ macro_rules! mark_ranges {
         debug_assert!($region.base().is_multiple_of(PAGE_SIZE));
         debug_assert!($region.len().is_multiple_of(PAGE_SIZE));
 
-        let seg = Segment::from_unused($region.base()..$region.end(), |_| $typ).unwrap();
+        let start = $region.base().max(super::min_paddr());
+        let seg = Segment::from_unused(start..$region.end(), |_| $typ).unwrap();
         let _ = ManuallyDrop::new(seg);
     }};
 }
@@ -584,7 +603,12 @@ macro_rules! mark_ranges {
 fn mark_unusable_ranges() {
     let regions = &crate::boot::EARLY_INFO.get().unwrap().memory_regions;
 
-    for region in regions.iter().rev().skip_while(|r| !r.typ().is_physical()) {
+    for region in regions
+        .iter()
+        .rev()
+        .skip_while(|r| !r.typ().is_physical())
+        .take_while(|r| r.end() > super::min_paddr())
+    {
         match region.typ() {
             MemoryRegionType::BadMemory => mark_ranges!(region, UnusableMemoryMeta),
             MemoryRegionType::Unknown => mark_ranges!(region, ReservedMemoryMeta),
@@ -606,8 +630,6 @@ fn mark_unusable_ranges() {
 /// initializing metadata.
 #[cfg(target_arch = "x86_64")]
 fn add_temp_linear_mapping(max_paddr: Paddr) {
-    use align_ext::AlignExt;
-
     use crate::mm::kspace::LINEAR_MAPPING_BASE_VADDR;
 
     const PADDR4G: Paddr = 0x1_0000_0000;
@@ -636,5 +658,40 @@ fn add_temp_linear_mapping(max_paddr: Paddr) {
             }
         })
         .unwrap();
+    }
+}
+
+#[cfg(ktest)]
+mod test {
+    use super::*;
+    use crate::prelude::ktest;
+
+    #[ktest]
+    fn metadata_fits_in_small_memory_at_high_addresses() {
+        let regions = [
+            MemoryRegion::new(0, 0x4000_0000, MemoryRegionType::Unknown),
+            MemoryRegion::new(0x4000_0000, 0x0100_0000, MemoryRegionType::Usable),
+        ];
+        let range = tracked_paddr_range(&regions);
+
+        assert_eq!(range, 0x4000_0000..0x4100_0000);
+        // A 16 MiB bank needs 256 KiB of metadata, regardless of its address.
+        assert_eq!(range.len() / PAGE_SIZE * META_SLOT_SIZE, 256 * 1024);
+    }
+
+    #[ktest]
+    fn addresses_outside_tracked_memory_are_rejected() {
+        use crate::mm::Frame;
+
+        if super::super::min_paddr() >= PAGE_SIZE {
+            assert!(matches!(
+                Frame::from_unused(super::super::min_paddr() - PAGE_SIZE, MetaPageMeta {}),
+                Err(GetFrameError::OutOfBound)
+            ));
+        }
+        assert!(matches!(
+            Frame::from_unused(super::super::max_paddr(), MetaPageMeta {}),
+            Err(GetFrameError::OutOfBound)
+        ));
     }
 }

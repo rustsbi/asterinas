@@ -100,6 +100,16 @@ pub fn read_tsc() -> u64 {
     riscv::register::time::read64()
 }
 
+/// Synchronizes instruction fetches with previous stores on the current hart.
+///
+/// Other harts must execute their own instruction fence before fetching code
+/// modified by this hart, for example through [`crate::smp::inter_processor_call`].
+pub fn flush_instruction_cache() {
+    // SAFETY: An instruction fence only synchronizes this hart's instruction
+    // stream with memory; it does not access pointers or change permissions.
+    unsafe { core::arch::asm!("fence.i", options(nostack)) };
+}
+
 /// Reads a hardware generated 64-bit random value.
 ///
 /// Returns `None` if no random value was generated.

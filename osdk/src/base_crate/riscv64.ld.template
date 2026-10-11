@@ -1,9 +1,13 @@
 ENTRY(_start)
 OUTPUT_ARCH(riscv)
 
-KERNEL_LMA = 0x80200000;
-KERNEL_VMA = 0xffffffff80200000;
-KERNEL_VMA_OFFSET = KERNEL_VMA - KERNEL_LMA;
+/* Boards can override the physical load address with --defsym=KERNEL_LMA=... . */
+PROVIDE(KERNEL_LMA = 0x80200000);
+KERNEL_VMA_OFFSET = 0xffffffff00000000;
+KERNEL_VMA = KERNEL_VMA_OFFSET + KERNEL_LMA;
+
+ASSERT((KERNEL_LMA & 0x1fffff) == 0, "RISC-V kernel must be 2 MiB aligned")
+ASSERT(KERNEL_LMA < 0xc0000000, "RISC-V kernel is outside the boot code mapping")
 
 SECTIONS
 {

@@ -64,15 +64,16 @@ pub(crate) fn new_socket_option(name: i32) -> Result<Box<dyn RawSocketOption>> {
         CSocketOptionName::KEEPALIVE => Ok(Box::new(KeepAlive::new())),
         CSocketOptionName::PRIORITY => Ok(Box::new(Priority::new())),
         CSocketOptionName::LINGER => Ok(Box::new(Linger::new())),
-        // On 64-bit systems, the old and new timeout options share the same
-        // `timeval_t` layout and can use the same handlers. A 32-bit userspace
-        // ABI would need separate handlers for the old and new layouts.
-        CSocketOptionName::RCVTIMEO_OLD | CSocketOptionName::RCVTIMEO_NEW => {
-            Ok(Box::new(RecvTimeout::new()))
-        }
-        CSocketOptionName::SNDTIMEO_OLD | CSocketOptionName::SNDTIMEO_NEW => {
-            Ok(Box::new(SendTimeout::new()))
-        }
+        CSocketOptionName::RCVTIMEO_OLD => Ok(Box::new(RecvTimeout::new())),
+        CSocketOptionName::SNDTIMEO_OLD => Ok(Box::new(SendTimeout::new())),
+        #[cfg(target_pointer_width = "64")]
+        CSocketOptionName::RCVTIMEO_NEW => Ok(Box::new(RecvTimeout::new())),
+        #[cfg(target_pointer_width = "64")]
+        CSocketOptionName::SNDTIMEO_NEW => Ok(Box::new(SendTimeout::new())),
+        #[cfg(target_pointer_width = "32")]
+        CSocketOptionName::RCVTIMEO_NEW => Ok(Box::new(Time64Timeout::Recv(RecvTimeout::new()))),
+        #[cfg(target_pointer_width = "32")]
+        CSocketOptionName::SNDTIMEO_NEW => Ok(Box::new(Time64Timeout::Send(SendTimeout::new()))),
         CSocketOptionName::REUSEPORT => Ok(Box::new(ReusePort::new())),
         CSocketOptionName::PASSCRED => Ok(Box::new(PassCred::new())),
         CSocketOptionName::PEERCRED => Ok(Box::new(PeerCred::new())),
@@ -101,6 +102,96 @@ impl_raw_sock_option_get_only!(PeerCred);
 impl_raw_sock_option_get_only!(AcceptConn);
 impl_raw_socket_option!(SendBufForce);
 impl_raw_socket_option!(RecvBufForce);
+
+// SO_*TIMEO_NEW uses two signed 64-bit fields even for an ILP32 caller.
+#[cfg(target_pointer_width = "32")]
+#[derive(Debug)]
+enum Time64Timeout {
+    Recv(RecvTimeout),
+    Send(SendTimeout),
+}
+
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy, Pod)]
+struct Timeval64 {
+    sec: i64,
+    usec: i64,
+}
+
+#[cfg(target_pointer_width = "32")]
+impl SocketOption for Time64Timeout {
+    fn as_any(&self) -> &dyn Any {
+        self.as_sock_option().as_any()
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self.as_sock_option_mut().as_any_mut()
+    }
+}
+
+#[cfg(target_pointer_width = "32")]
+impl RawSocketOption for Time64Timeout {
+    fn read_from_user(&mut self, addr: Vaddr, max_len: u32) -> Result<()> {
+        use core::time::Duration;
+
+        use crate::net::socket::util::SocketTimeout;
+
+        if (max_len as usize) < size_of::<Timeval64>() {
+            return_errno_with_message!(Errno::EINVAL, "max_len is too short");
+        }
+        let value = current_userspace!().read_val::<Timeval64>(addr)?;
+        let duration = if value.sec < 0 {
+            None
+        } else {
+            if !(0..1_000_000).contains(&value.usec) {
+                return_errno_with_message!(Errno::EDOM, "usec is out of range");
+            }
+            let duration = Duration::new(value.sec as u64, value.usec as u32 * 1_000);
+            (!duration.is_zero()).then_some(duration)
+        };
+        let timeout = SocketTimeout::new(duration);
+        match self {
+            Self::Recv(option) => option.set(timeout),
+            Self::Send(option) => option.set(timeout),
+        }
+        Ok(())
+    }
+
+    fn write_to_user(&self, addr: Vaddr, max_len: &mut u32) -> Result<usize> {
+        let len = size_of::<Timeval64>();
+        if (*max_len as usize) < len {
+            return_errno_with_message!(Errno::EINVAL, "max_len is too short");
+        }
+        let timeout = match self {
+            Self::Recv(option) => option.get().unwrap(),
+            Self::Send(option) => option.get().unwrap(),
+        };
+        let duration = timeout.duration().unwrap_or_default();
+        current_userspace!().write_val(
+            addr,
+            &Timeval64 {
+                sec: duration.as_secs() as i64,
+                usec: duration.subsec_micros() as i64,
+            },
+        )?;
+        Ok(len)
+    }
+
+    fn as_sock_option_mut(&mut self) -> &mut dyn SocketOption {
+        match self {
+            Self::Recv(option) => option,
+            Self::Send(option) => option,
+        }
+    }
+
+    fn as_sock_option(&self) -> &dyn SocketOption {
+        match self {
+            Self::Recv(option) => option,
+            Self::Send(option) => option,
+        }
+    }
+}
 
 // SO_PEERGROUPS is a read-only option. However, calling setsockopt on SO_PEERGROUPS will return EINVAL
 // instead of ENOPROTOOPT like other options. Therefore, we manually implement `RawSocketOption` for it.

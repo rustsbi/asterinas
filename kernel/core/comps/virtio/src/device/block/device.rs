@@ -215,6 +215,10 @@ impl DeviceInner {
 
         let config = config_manager.read_config();
         debug!("virio_blk_config = {:?}", config);
+        if usize::try_from(config.capacity).is_err() {
+            ostd::error!("virtio block capacity exceeds the addressable sector count");
+            return Err(VirtioDeviceError::UnsupportedConfig);
+        }
 
         let features =
             BlockFeatures::negotiated_with_device(device_transport.read_device_features());

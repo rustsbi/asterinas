@@ -2,11 +2,12 @@
 
 use core::{
     fmt::Display,
-    sync::atomic::{AtomicU32, AtomicU64, Ordering},
+    sync::atomic::{AtomicU32, Ordering},
     time::Duration,
 };
 
 use atomic_integer_wrapper::define_atomic_version_of_integer_like_type;
+use ostd::sync::atomic::AtomicU64;
 
 use super::clockid_t;
 use crate::{

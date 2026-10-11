@@ -6,7 +6,7 @@
 //! `FUSE_INIT` negotiation, and exposes typed request helpers.
 
 use alloc::{string::String, sync::Arc, vec::Vec};
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::Ordering;
 
 use aster_fuse::{
     FUSE_KERNEL_MINOR_VERSION, FUSE_KERNEL_VERSION, FUSE_ROOT_ID, FuseCompleteFn, FuseDirEntry,
@@ -22,7 +22,7 @@ use aster_fuse::{
         write::{WriteOperation, WriteReq},
     },
 };
-use ostd::{info, mm::io::util::HasVmReaderWriter};
+use ostd::{info, mm::io::util::HasVmReaderWriter, sync::atomic::AtomicU64};
 
 use super::{super::DEVICE_NAME, FileSystemDevice, FuseWaiter};
 use crate::device::filesystem::pool::{FuseDataBuf, FuseReplyBuf, FuseRequestBuf};

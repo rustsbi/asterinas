@@ -4,7 +4,7 @@
 
 #![cfg_attr(
     any(
-        target_arch = "riscv64",
+        any(target_arch = "riscv32", target_arch = "riscv64"),
         target_arch = "loongarch64",
         target_arch = "aarch64"
     ),
@@ -18,7 +18,10 @@ pub(crate) use timer_create::create_timer;
 use crate::{cpu::LinuxAbi, prelude::*};
 
 #[cfg_attr(target_arch = "x86_64", path = "arch/x86.rs")]
-#[cfg_attr(target_arch = "riscv64", path = "arch/riscv.rs")]
+#[cfg_attr(
+    any(target_arch = "riscv32", target_arch = "riscv64"),
+    path = "arch/riscv.rs"
+)]
 #[cfg_attr(target_arch = "loongarch64", path = "arch/loongarch.rs")]
 #[cfg_attr(target_arch = "aarch64", path = "arch/arm.rs")]
 mod arch;
@@ -383,7 +386,11 @@ impl SyscallArgument {
 
 pub(crate) fn handle_syscall(ctx: &Context, user_ctx: &mut UserContext) {
     let syscall_frame = SyscallArgument::new_from_context(user_ctx);
-    let syscall_return = arch::syscall_dispatch(
+    #[cfg(not(target_arch = "riscv32"))]
+    use arch::syscall_dispatch;
+    #[cfg(target_arch = "riscv32")]
+    use arch::syscall_dispatch_rv32 as syscall_dispatch;
+    let syscall_return = syscall_dispatch(
         syscall_frame.syscall_number,
         syscall_frame.args,
         ctx,

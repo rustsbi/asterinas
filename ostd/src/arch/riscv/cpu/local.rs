@@ -2,7 +2,7 @@
 
 //! Architecture dependent CPU-local information utilities.
 
-pub(crate) fn get_base() -> u64 {
+pub(crate) fn get_base() -> usize {
     let mut gp;
     // SAFETY: It is safe to read the register containing the CPU-local base.
     unsafe {

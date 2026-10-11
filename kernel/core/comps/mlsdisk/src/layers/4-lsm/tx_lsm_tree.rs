@@ -11,9 +11,10 @@ use alloc::vec;
 use core::{
     hash::Hash,
     ops::{Add, RangeInclusive, Sub},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::atomic::Ordering,
 };
 
+use ostd::sync::atomic::AtomicU64;
 use ostd_pod::Pod;
 
 use super::{

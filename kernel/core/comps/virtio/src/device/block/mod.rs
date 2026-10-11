@@ -191,11 +191,12 @@ impl ConfigManager<VirtioBlockConfig> {
     pub(self) fn capacity_sectors(&self) -> usize {
         let cap_low = self
             .read_once::<u32>(offset_of!(VirtioBlockConfig, capacity))
-            .unwrap() as usize;
+            .unwrap() as u64;
         let cap_high = self
             .read_once::<u32>(offset_of!(VirtioBlockConfig, capacity) + 4)
-            .unwrap() as usize;
+            .unwrap() as u64;
 
-        (cap_high << 32) | cap_low
+        usize::try_from((cap_high << 32) | cap_low)
+            .expect("virtio block capacity exceeds the addressable sector count")
     }
 }

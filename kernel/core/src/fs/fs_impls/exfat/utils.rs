@@ -7,8 +7,8 @@ use time::{OffsetDateTime, PrimitiveDateTime, Time};
 use super::fat::ClusterID;
 use crate::prelude::*;
 
-pub(crate) fn make_hash_index(cluster: ClusterID, offset: u32) -> usize {
-    ((cluster as usize) << 32usize) | (offset as usize & 0xffffffffusize)
+pub(crate) fn make_hash_index(cluster: ClusterID, offset: u32) -> u64 {
+    (u64::from(cluster) << 32) | u64::from(offset)
 }
 
 pub(crate) fn calc_checksum_32(data: &[u8]) -> u32 {

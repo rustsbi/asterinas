@@ -1111,8 +1111,8 @@ impl CachedDentry {
 #[cfg(debug_assertions)]
 const NEGATIVE_ENTRY_LIMIT: usize = 10000;
 #[cfg(debug_assertions)]
-static NEGATIVE_ENTRY_COUNTER: core::sync::atomic::AtomicU64 =
-    core::sync::atomic::AtomicU64::new(0);
+static NEGATIVE_ENTRY_COUNTER: ostd::sync::atomic::AtomicU64 =
+    ostd::sync::atomic::AtomicU64::new(0);
 
 impl DentryChildren {
     /// Creates an empty dentry cache.

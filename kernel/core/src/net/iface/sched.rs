@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::Ordering;
 
 use aster_bigtcp::iface::ScheduleNextPoll;
-use ostd::sync::WaitQueue;
+use ostd::sync::{WaitQueue, atomic::AtomicU64};
 
 pub(in crate::net) struct PollScheduler {
     /// The time when we should do the next poll.

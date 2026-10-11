@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0
 
-use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use core::sync::atomic::{AtomicU32, Ordering};
 
 use atomic_integer_wrapper::define_atomic_version_of_integer_like_type;
 use hashbrown::HashMap;
-use ostd::sync::{RwMutexReadGuard, RwMutexWriteGuard};
+use ostd::sync::{RwMutexReadGuard, RwMutexWriteGuard, atomic::AtomicU64};
 use sparse_id_alloc::SparseIdAlloc;
 
 use super::try_get_mnt_ns_inode;

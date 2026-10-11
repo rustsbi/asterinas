@@ -262,7 +262,11 @@ impl EarlyFrameAllocator {
             if region.typ() != MemoryRegionType::Usable {
                 continue;
             }
+            #[cfg(target_pointer_width = "64")]
             const PADDR4G: Paddr = 0x1_0000_0000;
+            // Every physical range representable on RV32 lies below 4 GiB.
+            #[cfg(target_pointer_width = "32")]
+            const PADDR4G: Paddr = usize::MAX;
             if region.base() < PADDR4G {
                 let range = region.base()..region.end().min(PADDR4G);
                 if range.len() > under_4g_range.len() {

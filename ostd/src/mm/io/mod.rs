@@ -977,7 +977,7 @@ pub trait PodOnce: Pod {}
 
 #[cfg(any(
     target_arch = "x86_64",
-    target_arch = "riscv64",
+    any(target_arch = "riscv64", target_arch = "riscv32"),
     target_arch = "loongarch64",
     target_arch = "aarch64"
 ))]
@@ -987,11 +987,13 @@ mod pod_once_impls {
     impl PodOnce for u8 {}
     impl PodOnce for u16 {}
     impl PodOnce for u32 {}
+    #[cfg(target_pointer_width = "64")]
     impl PodOnce for u64 {}
     impl PodOnce for usize {}
     impl PodOnce for i8 {}
     impl PodOnce for i16 {}
     impl PodOnce for i32 {}
+    #[cfg(target_pointer_width = "64")]
     impl PodOnce for i64 {}
     impl PodOnce for isize {}
 
@@ -1004,7 +1006,7 @@ mod pod_once_impls {
     pub(super) const fn is_non_tearing<T>() -> bool {
         let size = size_of::<T>();
 
-        size == 1 || size == 2 || size == 4 || size == 8
+        size == 1 || size == 2 || size == 4 || (size == 8 && size_of::<usize>() == 8)
     }
 }
 

@@ -65,16 +65,20 @@ use crate::{
 // The shortest supported address width is 39 bits. So the literal
 // values are written for 39 bits address width and we adjust the values
 // by arithmetic left shift.
+#[cfg(target_pointer_width = "64")]
 const_assert!(PagingConsts::ADDRESS_WIDTH >= 39);
+#[cfg(target_pointer_width = "64")]
 const ADDR_WIDTH_SHIFT: usize = PagingConsts::ADDRESS_WIDTH - 39;
 
 /// Start of the kernel address space.
-#[cfg(not(target_arch = "loongarch64"))]
+#[cfg(all(target_pointer_width = "64", not(target_arch = "loongarch64")))]
 pub const KERNEL_BASE_VADDR: Vaddr = 0xffff_ffc0_0000_0000 << ADDR_WIDTH_SHIFT;
+#[cfg(target_arch = "riscv32")]
+pub const KERNEL_BASE_VADDR: Vaddr = 0x4000_0000;
 #[cfg(target_arch = "loongarch64")]
 pub const KERNEL_BASE_VADDR: Vaddr = 0x9000_0000_0000_0000;
 /// End of the kernel address space (non inclusive).
-pub const KERNEL_END_VADDR: Vaddr = 0xffff_ffff_ffff_0000;
+pub const KERNEL_END_VADDR: Vaddr = usize::MAX - 0xffff;
 
 /// The maximum virtual address of user space (non inclusive).
 ///
@@ -85,7 +89,11 @@ pub const KERNEL_END_VADDR: Vaddr = 0xffff_ffff_ffff_0000;
 /// for some x86_64 CPUs' bugs. See
 /// <https://github.com/torvalds/linux/blob/480e035fc4c714fb5536e64ab9db04fedc89e910/arch/x86/include/asm/page_64.h#L68-L78>
 /// for the rationale.
+#[cfg(target_pointer_width = "64")]
 pub const MAX_USERSPACE_VADDR: Vaddr = (0x0000_0040_0000_0000 << ADDR_WIDTH_SHIFT) - PAGE_SIZE;
+#[cfg(target_arch = "riscv32")]
+/// The maximum virtual address of Sv32 user space (non inclusive).
+pub const MAX_USERSPACE_VADDR: Vaddr = KERNEL_BASE_VADDR - PAGE_SIZE;
 
 /// The kernel address space.
 ///
@@ -99,6 +107,14 @@ pub const KERNEL_VADDR_RANGE: Range<Vaddr> = KERNEL_BASE_VADDR..KERNEL_END_VADDR
 /// boot compatibility layer. But we disabled it because OSTD
 /// doesn't support relocatable kernel yet.
 pub fn kernel_loaded_offset() -> usize {
+    #[cfg(target_arch = "riscv32")]
+    {
+        unsafe extern "C" {
+            static KERNEL_VMA_OFFSET: u8;
+        }
+        core::ptr::addr_of!(KERNEL_VMA_OFFSET) as usize
+    }
+    #[cfg(not(target_arch = "riscv32"))]
     KERNEL_CODE_BASE_VADDR
 }
 
@@ -109,25 +125,43 @@ const KERNEL_CODE_BASE_VADDR: usize = 0xffff_ffff_0000_0000;
 #[cfg(target_arch = "loongarch64")]
 const KERNEL_CODE_BASE_VADDR: usize = 0x9000_0000_0000_0000;
 
+#[cfg(target_pointer_width = "64")]
 const FRAME_METADATA_CAP_VADDR: Vaddr = 0xffff_fff0_8000_0000 << ADDR_WIDTH_SHIFT;
+#[cfg(target_pointer_width = "64")]
 const FRAME_METADATA_BASE_VADDR: Vaddr = 0xffff_fff0_0000_0000 << ADDR_WIDTH_SHIFT;
+// Sv32: 1 GiB userspace, direct mapping up to physical 0x90000000,
+// 64 MiB metadata (covering 4 GiB), then vmalloc and the linked kernel.
+#[cfg(target_arch = "riscv32")]
+const FRAME_METADATA_BASE_VADDR: Vaddr = 0xd000_0000;
+#[cfg(target_arch = "riscv32")]
+const FRAME_METADATA_CAP_VADDR: Vaddr = 0xd400_0000;
 pub(in crate::mm) const FRAME_METADATA_RANGE: Range<Vaddr> =
     FRAME_METADATA_BASE_VADDR..FRAME_METADATA_CAP_VADDR;
 
+#[cfg(target_pointer_width = "64")]
 const VMALLOC_BASE_VADDR: Vaddr = 0xffff_ffe0_0000_0000 << ADDR_WIDTH_SHIFT;
+#[cfg(target_pointer_width = "64")]
 pub const VMALLOC_VADDR_RANGE: Range<Vaddr> = VMALLOC_BASE_VADDR..FRAME_METADATA_BASE_VADDR;
+#[cfg(target_arch = "riscv32")]
+pub const VMALLOC_VADDR_RANGE: Range<Vaddr> = FRAME_METADATA_CAP_VADDR..0xf000_0000;
 
 /// The base address of the linear mapping of all physical
 /// memory in the kernel address space.
-#[cfg(not(target_arch = "loongarch64"))]
+#[cfg(all(target_pointer_width = "64", not(target_arch = "loongarch64")))]
 pub const LINEAR_MAPPING_BASE_VADDR: Vaddr = 0xffff_ffc0_0000_0000 << ADDR_WIDTH_SHIFT;
+#[cfg(target_arch = "riscv32")]
+pub const LINEAR_MAPPING_BASE_VADDR: Vaddr = KERNEL_BASE_VADDR;
 #[cfg(target_arch = "loongarch64")]
 pub const LINEAR_MAPPING_BASE_VADDR: Vaddr = 0x9000_0000_0000_0000;
+#[cfg(target_pointer_width = "64")]
 pub const LINEAR_MAPPING_VADDR_RANGE: Range<Vaddr> = LINEAR_MAPPING_BASE_VADDR..VMALLOC_BASE_VADDR;
+#[cfg(target_arch = "riscv32")]
+pub const LINEAR_MAPPING_VADDR_RANGE: Range<Vaddr> =
+    LINEAR_MAPPING_BASE_VADDR..FRAME_METADATA_BASE_VADDR;
 
 /// Convert physical address to virtual address using offset, only available inside `ostd`
 pub fn paddr_to_vaddr(pa: Paddr) -> usize {
-    debug_assert!(pa < VMALLOC_BASE_VADDR - LINEAR_MAPPING_BASE_VADDR);
+    debug_assert!(pa < LINEAR_MAPPING_VADDR_RANGE.end - LINEAR_MAPPING_BASE_VADDR);
     pa + LINEAR_MAPPING_BASE_VADDR
 }
 
@@ -145,7 +179,7 @@ pub(super) struct KernelPtConfig {}
 // `item_ref_from_raw` are correctly implemented with respect to the `Item` and
 // `ItemRef` types.
 unsafe impl PageTableConfig for KernelPtConfig {
-    const TOP_LEVEL_INDEX_RANGE: Range<usize> = 256..512;
+    const TOP_LEVEL_INDEX_RANGE: Range<usize> = 256..super::nr_subpage_per_huge::<PagingConsts>();
     const TOP_LEVEL_CAN_UNMAP: bool = false;
 
     type E = PageTableEntry;
@@ -233,6 +267,17 @@ pub fn init_kernel_page_table(meta_pages: Segment<MetaPageMeta>) {
     // Do linear mappings for the kernel.
     {
         let max_paddr = crate::mm::frame::max_paddr();
+        // RISC-V firmware can put the live DTB in reserved RAM beyond the
+        // last tracked frame. Keep that RAM accessible after switching tables.
+        #[cfg(any(target_arch = "riscv64", target_arch = "riscv32"))]
+        let max_paddr = crate::arch::boot::DEVICE_TREE
+            .get()
+            .unwrap()
+            .memory()
+            .regions()
+            .filter_map(|region| (region.starting_address as usize).checked_add(region.size?))
+            .fold(max_paddr, usize::max)
+            .next_multiple_of(PAGE_SIZE);
         let from = LINEAR_MAPPING_BASE_VADDR..LINEAR_MAPPING_BASE_VADDR + max_paddr;
         let prop = PageProperty {
             flags: PageFlags::RW,
@@ -248,7 +293,7 @@ pub fn init_kernel_page_table(meta_pages: Segment<MetaPageMeta>) {
 
     // Map the metadata pages.
     {
-        let start_va = mapping::frame_to_meta::<PagingConsts>(0);
+        let start_va = mapping::frame_to_meta::<PagingConsts>(crate::mm::frame::min_paddr());
         let from = start_va..start_va + meta_pages.size();
         let prop = PageProperty {
             flags: PageFlags::RW,

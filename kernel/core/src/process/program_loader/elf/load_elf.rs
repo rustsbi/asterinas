@@ -63,7 +63,10 @@ pub(crate) fn load_elf_to_vmar(
     let ldso = lookup_and_parse_ldso(&elf_headers, &elf_file, path_resolver)?;
 
     #[cfg_attr(
-        not(any(target_arch = "x86_64", target_arch = "riscv64")),
+        not(any(
+            target_arch = "x86_64",
+            any(target_arch = "riscv32", target_arch = "riscv64")
+        )),
         expect(unused_mut)
     )]
     let (elf_mapped_info, entry_point, mut aux_vec) =
@@ -76,9 +79,12 @@ pub(crate) fn load_elf_to_vmar(
     // Map the vDSO and set the entry.
     // Since the vDSO does not require being mapped to any specific address,
     // the vDSO is mapped after the ELF file, heap, and stack.
-    #[cfg(any(target_arch = "x86_64", target_arch = "riscv64"))]
+    #[cfg(any(
+        target_arch = "x86_64",
+        any(target_arch = "riscv32", target_arch = "riscv64")
+    ))]
     if let Some(vdso_text_base) = map_vdso_to_vmar(vmar) {
-        #[cfg(target_arch = "riscv64")]
+        #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
         vmar.process_vm().set_vdso_base(vdso_text_base);
         aux_vec.set(AuxKey::AT_SYSINFO_EHDR, vdso_text_base as u64);
     }
@@ -491,7 +497,10 @@ fn init_aux_vec(
 }
 
 /// Maps the vDSO VMO to the corresponding virtual memory address.
-#[cfg(any(target_arch = "x86_64", target_arch = "riscv64"))]
+#[cfg(any(
+    target_arch = "x86_64",
+    any(target_arch = "riscv32", target_arch = "riscv64")
+))]
 fn map_vdso_to_vmar(vmar: &Vmar) -> Option<Vaddr> {
     use crate::vdso::{VDSO_VMO_LAYOUT, vdso_vmo};
 

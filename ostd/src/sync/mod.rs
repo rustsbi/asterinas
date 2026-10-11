@@ -2,6 +2,7 @@
 
 //! Useful synchronization primitives.
 
+pub mod atomic;
 mod guard;
 mod mutex;
 mod rcu;

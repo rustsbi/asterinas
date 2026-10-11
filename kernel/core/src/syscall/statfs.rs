@@ -63,23 +63,24 @@ pub(super) fn sys_fstatfs(
 }
 
 /// FS Stat
+#[padding_struct]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 struct Statfs {
     /// Type of filesystem
-    f_type: u64,
+    f_type: usize,
     /// Optimal transfer block size
     f_bsize: usize,
     /// Total data blocks in filesystem
-    f_blocks: usize,
+    f_blocks: u64,
     /// Free blocks in filesystem
-    f_bfree: usize,
+    f_bfree: u64,
     /// Free blocks available to unprivileged user
-    f_bavail: usize,
+    f_bavail: u64,
     /// Total inodes in filesystem
-    f_files: usize,
+    f_files: u64,
     /// Free inodes in filesystem
-    f_ffree: usize,
+    f_ffree: u64,
     /// Filesystem ID
     f_fsid: u64,
     /// Maximum length of filenames
@@ -87,10 +88,13 @@ struct Statfs {
     /// Fragment size
     f_frsize: usize,
     /// Mount flags of filesystem
-    f_flags: u64,
+    f_flags: usize,
     /// Padding bytes reserved for future use
-    f_spare: [u64; 4],
+    f_spare: [usize; 4],
 }
+
+#[cfg(target_arch = "riscv32")]
+pub(super) const STATFS_SIZE: usize = size_of::<Statfs>();
 
 impl Statfs {
     fn new(mount: &Mount) -> Self {
@@ -100,18 +104,19 @@ impl Statfs {
         let statfs_flags =
             StatfsFlags::new(mount.flags(), FsFlags::from_bits_truncate(sb.flags as u32));
         Self {
-            f_type: sb.magic,
+            f_type: sb.magic as usize,
             f_bsize: sb.bsize,
-            f_blocks: sb.blocks,
-            f_bfree: sb.bfree,
-            f_bavail: sb.bavail,
-            f_files: sb.files,
-            f_ffree: sb.ffree,
+            f_blocks: sb.blocks as u64,
+            f_bfree: sb.bfree as u64,
+            f_bavail: sb.bavail as u64,
+            f_files: sb.files as u64,
+            f_ffree: sb.ffree as u64,
             f_fsid: sb.fsid,
             f_namelen: sb.namelen,
             f_frsize: sb.frsize,
-            f_flags: statfs_flags.bits() as u64,
-            f_spare: [0u64; 4],
+            f_flags: statfs_flags.bits() as usize,
+            f_spare: [0; 4],
+            ..Default::default()
         }
     }
 }

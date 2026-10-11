@@ -28,7 +28,7 @@ impl ElfHeaders {
     /// can also be checked manually if a different error code is expected.
     ///
     /// [`ENOEXEC`]: Errno::ENOEXEC
-    pub(super) const LEN: usize = size_of::<HeaderPt1>() + size_of::<HeaderPt2_64>();
+    pub(super) const LEN: usize = size_of::<HeaderPt1>() + size_of::<HeaderPt2_<usize>>();
 
     pub(crate) fn parse(input: &[u8]) -> Result<Self> {
         // Parse the ELF header.
@@ -41,7 +41,12 @@ impl ElfHeaders {
         let ph_count = elf_header.pt2.ph_count;
         let ph_entry_size = elf_header.pt2.ph_entry_size;
         let ph_offset = elf_header.pt2.ph_offset;
-        if ph_entry_size as usize != size_of::<ProgramHeader64>() {
+        let expected_phdr_size = if cfg!(target_pointer_width = "32") {
+            size_of::<program::ProgramHeader32>()
+        } else {
+            size_of::<ProgramHeader64>()
+        };
+        if ph_entry_size as usize != expected_phdr_size {
             return_errno_with_message!(
                 Errno::ENOEXEC,
                 "the size of ELF program headers is invalid"
@@ -70,12 +75,18 @@ impl ElfHeaders {
                 })?;
             let ph64 = match program_header {
                 program::ProgramHeader::Ph64(ph64) => *ph64,
-                program::ProgramHeader::Ph32(_) => {
-                    return_errno_with_message!(
-                        Errno::ENOEXEC,
-                        "the ELF program header is not 64-bit"
-                    )
-                }
+                // Normalize ELF32 fields before applying the same overflow,
+                // range and permission checks as ELF64.
+                program::ProgramHeader::Ph32(ph32) => ProgramHeader64 {
+                    type_: ph32.type_,
+                    flags: ph32.flags,
+                    offset: u64::from(ph32.offset),
+                    virtual_addr: u64::from(ph32.virtual_addr),
+                    physical_addr: u64::from(ph32.physical_addr),
+                    file_size: u64::from(ph32.file_size),
+                    mem_size: u64::from(ph32.mem_size),
+                    align: u64::from(ph32.align),
+                },
             };
             match ph64.get_type() {
                 Ok(program::Type::Load) => {
@@ -186,40 +197,23 @@ struct ElfHeader {
 impl ElfHeader {
     pub(self) fn parse(header: Header) -> Result<Self> {
         let pt1 = *header.pt1;
-        let pt2 = match header.pt2 {
-            HeaderPt2::Header64(header_pt2) => {
-                let HeaderPt2_ {
-                    type_,
-                    machine,
-                    version,
-                    entry_point,
-                    ph_offset,
-                    sh_offset,
-                    flags,
-                    header_size,
-                    ph_entry_size,
-                    ph_count,
-                    sh_entry_size,
-                    sh_count,
-                    sh_str_index,
-                } = header_pt2;
-                HeaderPt2_64 {
-                    type_: *type_,
-                    machine: *machine,
-                    version: *version,
-                    entry_point: *entry_point,
-                    ph_offset: *ph_offset,
-                    sh_offset: *sh_offset,
-                    flags: *flags,
-                    header_size: *header_size,
-                    ph_entry_size: *ph_entry_size,
-                    ph_count: *ph_count,
-                    sh_entry_size: *sh_entry_size,
-                    sh_count: *sh_count,
-                    sh_str_index: *sh_str_index,
-                }
-            }
-            _ => return_errno_with_message!(Errno::ENOEXEC, "the ELF file is not 64-bit"),
+        let pt2 = HeaderPt2_64 {
+            type_: header.pt2.type_(),
+            machine: header.pt2.machine(),
+            version: header.pt2.version(),
+            entry_point: header.pt2.entry_point(),
+            ph_offset: header.pt2.ph_offset(),
+            sh_offset: header.pt2.sh_offset(),
+            flags: match header.pt2 {
+                HeaderPt2::Header32(pt2) => pt2.flags,
+                HeaderPt2::Header64(pt2) => pt2.flags,
+            },
+            header_size: header.pt2.header_size(),
+            ph_entry_size: header.pt2.ph_entry_size(),
+            ph_count: header.pt2.ph_count(),
+            sh_entry_size: header.pt2.sh_entry_size(),
+            sh_count: header.pt2.sh_count(),
+            sh_str_index: header.pt2.sh_str_index(),
         };
         Ok(ElfHeader { pt1, pt2 })
     }
@@ -251,7 +245,7 @@ struct HeaderPt2_64 {
 fn check_elf_header(elf_header: &ElfHeader) -> Result<()> {
     #[cfg(target_arch = "x86_64")]
     const EXPECTED_ELF_MACHINE: header::Machine = header::Machine::X86_64;
-    #[cfg(target_arch = "riscv64")]
+    #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
     const EXPECTED_ELF_MACHINE: header::Machine = header::Machine::RISC_V;
     // Reference: <https://loongson.github.io/LoongArch-Documentation/LoongArch-ELF-ABI-EN.html#_e_machine_identifies_the_machine>
     #[cfg(target_arch = "loongarch64")]
@@ -259,8 +253,13 @@ fn check_elf_header(elf_header: &ElfHeader) -> Result<()> {
     #[cfg(target_arch = "aarch64")]
     const EXPECTED_ELF_MACHINE: header::Machine = header::Machine::AArch64;
 
-    if elf_header.pt1.class() != header::Class::SixtyFour {
-        return_errno_with_message!(Errno::ENOEXEC, "the ELF file is not 64-bit");
+    let expected_class = if cfg!(target_pointer_width = "32") {
+        header::Class::ThirtyTwo
+    } else {
+        header::Class::SixtyFour
+    };
+    if elf_header.pt1.class() != expected_class {
+        return_errno_with_message!(Errno::ENOEXEC, "the ELF class differs from the native ABI");
     }
 
     if elf_header.pt1.data() != header::Data::LittleEndian {

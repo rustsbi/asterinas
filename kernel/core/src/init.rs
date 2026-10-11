@@ -22,7 +22,6 @@ use crate::{
 
 pub(super) fn main() {
     // Initialize the global states for all CPUs.
-    ostd::early_println!("OSTD initialized. Preparing components.");
     component::init_all(InitStage::Bootstrap, component::parse_metadata!()).unwrap();
     init();
 
@@ -140,8 +139,6 @@ fn ap_idle_loop() {
 
 // The main function of the first (non-idle) kernel thread
 fn first_kthread() {
-    println!("Spawn the first kernel thread");
-
     let init_mnt_ns = MountNamespace::get_init_singleton();
     let fs_resolver = init_mnt_ns.new_path_resolver();
     init_in_first_kthread(&fs_resolver);
@@ -268,7 +265,10 @@ fn init_in_first_kthread(path_resolver: &PathResolver) {
     crate::fs::init_in_first_kthread(path_resolver);
     crate::device::init_in_first_kthread();
     crate::net::init_in_first_kthread();
-    #[cfg(any(target_arch = "x86_64", target_arch = "riscv64"))]
+    #[cfg(any(
+        target_arch = "x86_64",
+        any(target_arch = "riscv32", target_arch = "riscv64")
+    ))]
     crate::vdso::init_in_first_kthread();
 }
 

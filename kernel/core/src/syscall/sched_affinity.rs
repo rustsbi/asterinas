@@ -62,7 +62,7 @@ pub(super) fn sys_sched_setaffinity(
 
 // Linux uses `DECLARE_BITMAP` for `cpu_set_t`, inside which each part is a
 // `long`. We use the same scheme to ensure byte endianness compatibility.
-type Part = u64;
+type Part = usize;
 const SIZE_OF_PART: usize = size_of::<Part>();
 const CPUS_IN_PART: usize = SIZE_OF_PART * 8;
 

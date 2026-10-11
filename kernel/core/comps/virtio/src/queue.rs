@@ -465,8 +465,9 @@ impl VirtQueue {
         loop {
             let desc = &mut self.descs[head as usize];
             // Set the buffer address and length to 0.
+            // The used descriptor is driver-owned again, so this may tear.
             field_ptr!(&desc.ptr, Descriptor, addr)
-                .write_once(&(0u64))
+                .write(&(0u64))
                 .unwrap();
             field_ptr!(&desc.ptr, Descriptor, len)
                 .write_once(&(0u32))
@@ -558,8 +559,10 @@ fn set_dma_buf<T: DmaBuf>(desc_ptr: &DescriptorPtr, buf: &T) -> u32 {
     // TODO: Should we skip the empty DMA buffer or just return an error?
     debug_assert_ne!(len, 0);
 
+    // The descriptor is not exposed to the device until add_dma_bufs publishes
+    // avail.idx after a write barrier, so its address need not be written atomically.
     field_ptr!(desc_ptr, Descriptor, addr)
-        .write_once(&(daddr as u64))
+        .write(&(daddr as u64))
         .unwrap();
     field_ptr!(desc_ptr, Descriptor, len)
         .write_once(&(len as u32))

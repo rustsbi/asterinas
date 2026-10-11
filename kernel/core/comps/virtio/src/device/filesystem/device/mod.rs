@@ -13,7 +13,7 @@ mod virtio_ops;
 mod waiter;
 
 use alloc::{string::String, sync::Arc, vec::Vec};
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::Ordering;
 
 use aster_fuse::{
     FuseCompleteFn, FuseError, FuseNodeId, FuseOperation, FuseUnique, ReplyExpectation,
@@ -24,7 +24,7 @@ use ostd::{
         dma::{FromDevice, ToDevice},
         io::util::HasVmReaderWriter,
     },
-    sync::{LocalIrqDisabled, SpinLock},
+    sync::{LocalIrqDisabled, SpinLock, atomic::AtomicU64},
 };
 use queue::FsRequestQueue;
 use request::FuseRequest;

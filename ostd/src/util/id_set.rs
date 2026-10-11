@@ -23,7 +23,7 @@ use core::{
     fmt::Debug,
     marker::PhantomData,
     ops::{Bound, Range, RangeFrom, RangeFull, RangeTo, RangeToInclusive},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::atomic::{AtomicUsize, Ordering},
 };
 
 use bitvec::{order::Lsb0, view::BitView};
@@ -129,7 +129,7 @@ pub struct IdSet<I> {
     phantom: PhantomData<I>,
 }
 
-type InnerPart = u64;
+type InnerPart = usize;
 
 const BITS_PER_PART: usize = InnerPart::BITS as usize;
 const NR_PARTS_NO_ALLOC: usize = 2;
@@ -344,22 +344,22 @@ impl<I: Id> Default for IdSet<I> {
 
 /// A set of IDs that may be accessed concurrently.
 ///
-/// `AtomicIdSet` is backed by an array of `AtomicU64`.
+/// `AtomicIdSet` is backed by an array of `AtomicUsize`.
 /// This allows individual ID bits to be added, removed, or tested atomically.
-/// But operations that span multiple `AtomicU64` values are non-atomic.
+/// But operations that span multiple `AtomicUsize` values are non-atomic.
 #[derive(Debug)]
 pub struct AtomicIdSet<I> {
     bits: SmallVec<[AtomicInnerPart; NR_PARTS_NO_ALLOC]>,
     phantom: PhantomData<I>,
 }
 
-type AtomicInnerPart = AtomicU64;
+type AtomicInnerPart = AtomicUsize;
 const_assert!(size_of::<AtomicInnerPart>() == size_of::<InnerPart>());
 
 impl<I: Id> AtomicIdSet<I> {
     /// Creates a new `AtomicIdSet` from an `IdSet`.
     pub fn new(value: IdSet<I>) -> Self {
-        let bits = value.bits.into_iter().map(AtomicU64::new).collect();
+        let bits = value.bits.into_iter().map(AtomicInnerPart::new).collect();
         Self {
             bits,
             phantom: PhantomData,

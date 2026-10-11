@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0
 
-use core::sync::atomic::{AtomicI64, AtomicU32, Ordering};
+use core::sync::atomic::{AtomicU32, Ordering};
 
 use atomic_integer_wrapper::define_atomic_version_of_integer_like_type;
 use device_id::DeviceId;
+use ostd::sync::atomic::AtomicI64;
 
 use super::inode::Inode;
 use crate::prelude::*;

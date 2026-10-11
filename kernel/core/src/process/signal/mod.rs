@@ -147,7 +147,7 @@ pub(crate) fn handle_pending_signal(user_ctx: &mut UserContext, ctx: &Context) {
             {
                 #[cfg(target_arch = "x86_64")]
                 const SYSCALL_INSTR_LEN: usize = 2; // syscall
-                #[cfg(target_arch = "riscv64")]
+                #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
                 const SYSCALL_INSTR_LEN: usize = 4; // ecall
                 #[cfg(target_arch = "loongarch64")]
                 const SYSCALL_INSTR_LEN: usize = 4; // syscall
@@ -329,14 +329,19 @@ pub(crate) fn handle_user_signal(
 
     let user_space = ctx.user_space();
 
-    // 1. Write `siginfo_t`.
-    stack_pointer = alloc_aligned_in_user_stack(
-        stack_pointer,
-        size_of::<siginfo_t>(),
-        align_of::<siginfo_t>(),
-    );
-    user_space.write_val(stack_pointer as _, &sig_info)?;
-    let siginfo_addr = stack_pointer;
+    // RV32 places siginfo before ucontext in struct rt_sigframe; allocate it below
+    // the ucontext after that context has been written.
+    #[cfg(not(target_arch = "riscv32"))]
+    let siginfo_addr = {
+        // 1. Write `siginfo_t`.
+        stack_pointer = alloc_aligned_in_user_stack(
+            stack_pointer,
+            size_of::<siginfo_t>(),
+            align_of::<siginfo_t>(),
+        );
+        user_space.write_val(stack_pointer as _, &sig_info)?;
+        stack_pointer
+    };
 
     // 2. Write `ucontext_t`.
 
@@ -383,15 +388,14 @@ pub(crate) fn handle_user_signal(
                 .uc_mcontext
                 .set_fpu_context_addr(fpu_context_addr as _);
 
-            const UC_FP_XSTATE: u64 = 1 << 0;
+            const UC_FP_XSTATE: usize = 1 << 0;
             ucontext.uc_flags = UC_FP_XSTATE;
         }
-        target_arch = "riscv64" => {
+        any(target_arch = "riscv32", target_arch = "riscv64") => {
             // Reference:
             // <https://elixir.bootlin.com/linux/v6.17.5/source/arch/riscv/include/uapi/asm/ptrace.h#L94-L98>,
             // <https://elixir.bootlin.com/linux/v6.17.5/source/arch/riscv/include/uapi/asm/ptrace.h#L69-L77>.
-            const FP_STATE_SIZE: usize =
-                size_of::<ostd::arch::cpu::context::QFpuContext>() + 3 * size_of::<u32>();
+            const FP_STATE_SIZE: usize = 64 * size_of::<u64>() + 4 * size_of::<u32>();
 
             let ucontext_addr = alloc_aligned_in_user_stack(
                 stack_pointer,
@@ -399,6 +403,8 @@ pub(crate) fn handle_user_signal(
                 align_of::<ucontext_t>(),
             );
             let fpu_context_addr = (ucontext_addr as usize) + size_of::<ucontext_t>();
+            // Clear the unused F/D/Q union slots and the reserved extension header.
+            user_space.write_bytes(fpu_context_addr, &[0; FP_STATE_SIZE])?;
         }
         any(target_arch = "loongarch64", target_arch = "aarch64") => {
             // FIXME: Allocate the FPU context.
@@ -423,13 +429,19 @@ pub(crate) fn handle_user_signal(
     // Align the SP to the 16-byte boundary. This is required by the x86-64 ABI before calling any
     // function.
     stack_pointer = ucontext_addr.align_down(16);
+    #[cfg(target_arch = "riscv32")]
+    let siginfo_addr = {
+        stack_pointer = alloc_aligned_in_user_stack(stack_pointer, size_of::<siginfo_t>(), 16);
+        user_space.write_val(stack_pointer as Vaddr, &sig_info)?;
+        stack_pointer
+    };
 
     // 3. Write the address of the restorer code.
     let retaddr = if flags.contains(SigActionFlags::SA_RESTORER) {
         restorer_addr
     } else {
         cfg_select! {
-            target_arch = "riscv64" => {
+            any(target_arch = "riscv32", target_arch = "riscv64") => {
                 ctx.user_space().vmar().process_vm().vdso_base()
                     + crate::vdso::__VDSO_RT_SIGRETURN_OFFSET
             }
@@ -446,7 +458,7 @@ pub(crate) fn handle_user_signal(
         target_arch = "x86_64" => {
             stack_pointer = write_u64_to_user_stack(stack_pointer, retaddr as u64)?;
         }
-        any(target_arch = "riscv64", target_arch = "loongarch64") => {
+        any(any(target_arch = "riscv32", target_arch = "riscv64"), target_arch = "loongarch64") => {
             user_ctx.set_ra(retaddr);
         }
         target_arch = "aarch64" => {

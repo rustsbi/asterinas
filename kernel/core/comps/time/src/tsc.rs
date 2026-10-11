@@ -3,10 +3,11 @@
 //! This module provide a instance of `ClockSource` based on TSC.
 
 use alloc::sync::Arc;
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::Ordering;
 
 use ostd::{
     arch::{read_tsc, tsc_freq},
+    sync::atomic::AtomicU64,
     timer::{self, TIMER_FREQ},
 };
 use spin::Once;

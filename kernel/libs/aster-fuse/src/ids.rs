@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::Ordering;
+
+use ostd::sync::atomic::AtomicU64;
 
 /// A FUSE request identifier (`unique`) exchanged on the protocol.
 ///

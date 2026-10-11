@@ -11,8 +11,10 @@ mod current;
 
 use core::{
     any::{Any, TypeId},
-    sync::atomic::{AtomicBool, AtomicU64, Ordering},
+    sync::atomic::{AtomicBool, Ordering},
 };
+
+use ostd::sync::atomic::AtomicU64;
 
 pub use self::current::CurrentTx;
 use crate::{

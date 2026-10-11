@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 
+#[cfg(target_arch = "riscv32")]
+use core::arch::riscv32 as instructions;
+#[cfg(target_arch = "riscv64")]
+use core::arch::riscv64 as instructions;
 use core::ops::Range;
 
 use spin::Once;
@@ -27,7 +31,7 @@ mod util;
 #[derive(Clone, Debug, Default)]
 pub(crate) struct PagingConsts {}
 
-#[cfg(not(feature = "riscv_sv39_mode"))]
+#[cfg(all(target_arch = "riscv64", not(feature = "riscv_sv39_mode")))]
 impl PagingConstsTrait for PagingConsts {
     const BASE_PAGE_SIZE: usize = 4096;
     const NR_LEVELS: PagingLevel = 4;
@@ -37,13 +41,24 @@ impl PagingConstsTrait for PagingConsts {
     const PTE_SIZE: usize = size_of::<PageTableEntry>();
 }
 
-#[cfg(feature = "riscv_sv39_mode")]
+#[cfg(all(target_arch = "riscv64", feature = "riscv_sv39_mode"))]
 impl PagingConstsTrait for PagingConsts {
     const BASE_PAGE_SIZE: usize = 4096;
     const NR_LEVELS: PagingLevel = 3;
     const ADDRESS_WIDTH: usize = 39;
     const VA_SIGN_EXT: bool = true;
     const HIGHEST_TRANSLATION_LEVEL: PagingLevel = 2;
+    const PTE_SIZE: usize = size_of::<PageTableEntry>();
+}
+
+#[cfg(target_arch = "riscv32")]
+impl PagingConstsTrait for PagingConsts {
+    const BASE_PAGE_SIZE: usize = 4096;
+    const NR_LEVELS: PagingLevel = 2;
+    const ADDRESS_WIDTH: usize = 32;
+    const VA_SIGN_EXT: bool = false;
+    // Kernel root entries must point to shared second-level tables.
+    const HIGHEST_TRANSLATION_LEVEL: PagingLevel = 1;
     const PTE_SIZE: usize = size_of::<PageTableEntry>();
 }
 
@@ -76,10 +91,13 @@ bitflags::bitflags! {
         const RSV2 =            1 << 9;
 
         /// PBMT: Non-cacheable, idempotent, weakly-ordered (RVWMO), main memory.
+        #[cfg(target_arch = "riscv64")]
         const PBMT_NC =         1 << 61;
         /// PBMT: Non-cacheable, non-idempotent, strongly-ordered (I/O ordering), I/O.
+        #[cfg(target_arch = "riscv64")]
         const PBMT_IO =         1 << 62;
         /// Naturally aligned power-of-2.
+        #[cfg(target_arch = "riscv64")]
         const NAPOT =           1 << 63;
     }
 }
@@ -90,7 +108,7 @@ pub(crate) fn tlb_flush_addr(vaddr: Vaddr) {
     // Don't specify an ASID here. `vaddr` may be associated with a global entry.
     //
     // SAFETY: This invalidates the TLB, which doesn't affect the memory safety.
-    unsafe { core::arch::riscv64::sfence_vma_vaddr(vaddr) };
+    unsafe { instructions::sfence_vma_vaddr(vaddr) };
 }
 
 pub(crate) fn tlb_flush_addr_range(range: &Range<Vaddr>) {
@@ -103,12 +121,12 @@ pub(crate) fn tlb_flush_all_excluding_global() {
     // We use `SHARED_ASID` all the time, so all non-global pages are associated with it.
     //
     // SAFETY: This invalidates the TLB, which doesn't affect the memory safety.
-    unsafe { core::arch::riscv64::sfence_vma_asid(SHARED_ASID) };
+    unsafe { instructions::sfence_vma_asid(SHARED_ASID) };
 }
 
 pub(crate) fn tlb_flush_all_including_global() {
     // SAFETY: This invalidates the TLB, which doesn't affect the memory safety.
-    unsafe { core::arch::riscv64::sfence_vma_all() };
+    unsafe { instructions::sfence_vma_all() };
 }
 
 pub(crate) fn can_sync_dma() -> bool {
@@ -171,10 +189,12 @@ pub(crate) unsafe fn activate_page_table(root_paddr: Paddr) {
     assert!(root_paddr.is_multiple_of(PagingConsts::BASE_PAGE_SIZE));
     let ppn = root_paddr >> 12;
 
-    #[cfg(not(feature = "riscv_sv39_mode"))]
+    #[cfg(all(target_arch = "riscv64", not(feature = "riscv_sv39_mode")))]
     let mode = riscv::register::satp::Mode::Sv48;
-    #[cfg(feature = "riscv_sv39_mode")]
+    #[cfg(all(target_arch = "riscv64", feature = "riscv_sv39_mode"))]
     let mode = riscv::register::satp::Mode::Sv39;
+    #[cfg(target_arch = "riscv32")]
+    let mode = riscv::register::satp::Mode::Sv32;
 
     // SAFETY: The safety is upheld by the caller.
     unsafe { riscv::register::satp::set(mode, SHARED_ASID, ppn) };
@@ -201,7 +221,10 @@ macro_rules! parse_flags {
 }
 
 impl PageTableEntry {
+    #[cfg(target_arch = "riscv64")]
     const PHYS_ADDR_MASK: usize = 0x003f_ffff_ffff_fc00;
+    #[cfg(target_arch = "riscv32")]
+    const PHYS_ADDR_MASK: usize = 0xffff_fc00;
 
     fn new_without_flags(paddr: Paddr) -> Self {
         assert_eq!(paddr & !Self::PHYS_ADDR_MASK, 0);
@@ -229,11 +252,15 @@ impl PageTableEntry {
             | parse_flags!(self.0, PteFlags::GLOBAL, PrivFlags::GLOBAL)
             | parse_flags!(self.0, PteFlags::RSV1, PrivFlags::AVAIL1);
 
+        #[cfg(target_arch = "riscv64")]
         let cache = if self.0 & PteFlags::PBMT_IO.bits() != 0 {
             CachePolicy::Uncacheable
         } else {
             CachePolicy::Writeback
         };
+        // Sv32 has no PBMT bits; device cacheability follows platform PMAs.
+        #[cfg(target_arch = "riscv32")]
+        let cache = CachePolicy::Writeback;
 
         PageProperty {
             flags: PageFlags::from_bits(flags as u8).unwrap(),
@@ -250,7 +277,7 @@ impl PageTableEntry {
     }
 
     fn new_page(paddr: Paddr, _level: PagingLevel, prop: PageProperty) -> Self {
-        let mut flags = PteFlags::VALID.bits()
+        let flags = PteFlags::VALID.bits()
             | parse_flags!(prop.flags.bits(), PageFlags::R, PteFlags::READABLE)
             | parse_flags!(prop.flags.bits(), PageFlags::W, PteFlags::WRITABLE)
             | parse_flags!(prop.flags.bits(), PageFlags::X, PteFlags::EXECUTABLE)
@@ -261,18 +288,31 @@ impl PageTableEntry {
             | parse_flags!(prop.priv_flags.bits(), PrivFlags::AVAIL1, PteFlags::RSV1)
             | parse_flags!(prop.flags.bits(), PageFlags::AVAIL2, PteFlags::RSV2);
 
-        match prop.cache {
-            CachePolicy::Writeback => (),
+        // Kernel mappings do not track accesses or writes. Pre-set A/D on
+        // Sv32, where the C907 faults instead of updating these bits in hardware.
+        #[cfg(target_arch = "riscv32")]
+        let flags = if !prop.priv_flags.contains(PrivFlags::USER) {
+            flags | PteFlags::ACCESSED.bits() | PteFlags::DIRTY.bits()
+        } else {
+            flags
+        };
+
+        let flags = match prop.cache {
+            CachePolicy::Writeback => flags,
             CachePolicy::Uncacheable => {
                 // TODO: Currently Asterinas uses `Uncacheable` only for I/O
                 // memory. Normal memory can also be `Noncacheable`, where the
                 // PBMT should be set to `PBMT_NC`.
+                #[cfg(target_arch = "riscv64")]
                 if has_extensions(IsaExtensions::SVPBMT) {
-                    flags |= PteFlags::PBMT_IO.bits()
+                    return Self(
+                        Self::new_without_flags(paddr).0 | flags | PteFlags::PBMT_IO.bits(),
+                    );
                 }
+                flags
             }
             _ => panic!("unsupported cache policy"),
-        }
+        };
 
         let res = Self::new_without_flags(paddr);
         Self(res.0 | flags)

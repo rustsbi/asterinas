@@ -3,11 +3,7 @@
 #![expect(dead_code)]
 #![expect(unused_variables)]
 
-use core::{
-    num::NonZeroUsize,
-    ops::Range,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use core::{num::NonZeroUsize, ops::Range, sync::atomic::Ordering};
 
 use aster_block::{
     BlockDevice,
@@ -19,6 +15,7 @@ use hashbrown::HashMap;
 use io_util::batch::IoBatch;
 use lru::LruCache;
 pub(super) use ostd::mm::VmIo;
+use ostd::sync::atomic::AtomicU64;
 
 use super::{
     bitmap::ExfatBitmap,
@@ -55,7 +52,7 @@ pub(crate) struct ExfatFs {
     highest_inode_number: AtomicU64,
 
     //inodes are indexed by their hash_value.
-    inodes: RwMutex<HashMap<usize, Arc<ExfatInode>>>,
+    inodes: RwMutex<HashMap<u64, Arc<ExfatInode>>>,
 
     //Cache for fat table
     fat_cache: RwLock<LruCache<ClusterID, ClusterID>>,
@@ -130,15 +127,15 @@ impl ExfatFs {
         self.highest_inode_number.fetch_add(1, Ordering::Relaxed)
     }
 
-    pub(super) fn find_opened_inode(&self, hash: usize) -> Option<Arc<ExfatInode>> {
+    pub(super) fn find_opened_inode(&self, hash: u64) -> Option<Arc<ExfatInode>> {
         self.inodes.read().get(&hash).cloned()
     }
 
-    pub(super) fn remove_inode(&self, hash: usize) {
+    pub(super) fn remove_inode(&self, hash: u64) {
         let _ = self.inodes.write().remove(&hash);
     }
 
-    pub(super) fn evict_inode(&self, hash: usize) -> Result<()> {
+    pub(super) fn evict_inode(&self, hash: u64) -> Result<()> {
         if let Some(inode) = self.inodes.read().get(&hash).cloned() {
             if inode.is_deleted() {
                 inode.reclaim_space()?;

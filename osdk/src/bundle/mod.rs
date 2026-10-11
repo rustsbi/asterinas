@@ -363,7 +363,7 @@ impl Bundle {
                     break;
                 }
 
-                if config.target_arch == Arch::RiscV64
+                if matches!(config.target_arch, Arch::RiscV32 | Arch::RiscV64)
                     && let Ok(log_file) = std::fs::File::open(qemu_log_path)
                 {
                     let log = rev_buf_reader::RevBufReader::new(&log_file);

@@ -99,7 +99,7 @@ fn check_sigaction(sig_action: &SigAction) -> Result<()> {
             // Ref: <https://elixir.bootlin.com/linux/v6.13/source/arch/x86/kernel/signal_64.c#L172>
             return_errno_with_message!(Errno::EINVAL, "x86-64 should always use SA_RESTORER");
         }
-        target_arch = "riscv64" => {
+        any(target_arch = "riscv32", target_arch = "riscv64") => {
             // On RISC-V, if `SA_RESTORER` is not specified, `__vdso_rt_sigreturn` will be used as a fallback.
             Ok(())
         }

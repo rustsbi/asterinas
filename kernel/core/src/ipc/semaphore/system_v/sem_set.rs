@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::Ordering;
 
 use aster_rights::ReadOp;
+use ostd::sync::atomic::AtomicU64;
 
 use super::sem::{
     PendingBlocker, PendingOp, Semaphore, Status, update_pending_alter, wake_const_ops,
@@ -59,8 +60,8 @@ struct IpcPerm {
     _pad1: u16,
     seq: u16,
     _pad2: u16,
-    _unused1: u64,
-    _unused2: u64,
+    _unused1: usize,
+    _unused2: usize,
 }
 
 // In Linux, most popular 64-bit architectures except x86_64 adopt the same
@@ -81,17 +82,32 @@ pub(crate) struct SemidDs {
     _unused4: u64,
 }
 
-#[cfg(not(target_arch = "x86_64"))]
+#[cfg(not(any(target_arch = "x86_64", target_arch = "riscv32")))]
 #[padding_struct]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(crate) struct SemidDs {
     sem_perm: IpcPerm,
-    sem_otime: u64,
-    sem_ctime: u64,
-    sem_nsems: u64,
-    _unused3: u64,
-    _unused4: u64,
+    sem_otime: usize,
+    sem_ctime: usize,
+    sem_nsems: usize,
+    _unused3: usize,
+    _unused4: usize,
+}
+
+// asm-generic/sembuf.h stores each timestamp as low/high unsigned-long words.
+#[cfg(target_arch = "riscv32")]
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Pod)]
+pub(crate) struct SemidDs {
+    sem_perm: IpcPerm,
+    sem_otime: usize,
+    sem_otime_high: usize,
+    sem_ctime: usize,
+    sem_ctime_high: usize,
+    sem_nsems: usize,
+    _unused3: usize,
+    _unused4: usize,
 }
 
 #[derive(Debug)]
@@ -277,9 +293,13 @@ impl SemaphoreSet {
 
         SemidDs {
             sem_perm: ipc_perm,
-            sem_otime: self.sem_otime.load(Ordering::Relaxed),
-            sem_ctime: self.sem_ctime.load(Ordering::Relaxed),
-            sem_nsems: self.num_sems as u64,
+            sem_otime: self.sem_otime.load(Ordering::Relaxed) as _,
+            #[cfg(target_pointer_width = "32")]
+            sem_otime_high: (self.sem_otime.load(Ordering::Relaxed) >> 32) as _,
+            sem_ctime: self.sem_ctime.load(Ordering::Relaxed) as _,
+            #[cfg(target_pointer_width = "32")]
+            sem_ctime_high: (self.sem_ctime.load(Ordering::Relaxed) >> 32) as _,
+            sem_nsems: self.num_sems as _,
             ..SemidDs::default()
         }
     }

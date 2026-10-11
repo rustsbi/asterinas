@@ -3,10 +3,7 @@
 #![expect(dead_code)]
 
 use alloc::format;
-use core::{
-    sync::atomic::{AtomicU64, Ordering},
-    time::Duration,
-};
+use core::{sync::atomic::Ordering, time::Duration};
 
 use align_ext::AlignExt;
 use aster_block::BLOCK_SIZE;
@@ -14,6 +11,7 @@ use hashbrown::HashSet;
 use inherit_methods_macro::inherit_methods;
 use ostd::{
     mm::{FrameAllocOptions, io::util::HasVmReaderWriter},
+    sync::atomic::AtomicU64,
     task::Task,
 };
 
@@ -1169,12 +1167,12 @@ impl OverlayDirVisitor {
 
 struct UniqueNoGenerator;
 
-// Unique offset and ino layout: `| LayerIdx (8 bits) | Real fs offset or ino (56 bits) |`
+// Offsets reserve the high byte of a native word for LayerIdx. Inodes remain 64-bit.
 impl UniqueNoGenerator {
     const NUM_HIGHER_BITS: usize = 8;
-    const NUM_LOWER_BITS: usize = 56;
-    const HIGHER_MASK: usize = 0xFF00_0000_0000_0000;
-    const LOWER_MASK: usize = 0x00FF_FFFF_FFFF_FFFF;
+    const NUM_LOWER_BITS: usize = usize::BITS as usize - Self::NUM_HIGHER_BITS;
+    const HIGHER_MASK: usize = usize::MAX << Self::NUM_LOWER_BITS;
+    const LOWER_MASK: usize = !Self::HIGHER_MASK;
 
     pub(crate) fn gen_unique_offset(layer_idx: LayerIdx, fs_offset: usize) -> Result<usize> {
         if fs_offset & Self::HIGHER_MASK != 0 {
@@ -1185,10 +1183,10 @@ impl UniqueNoGenerator {
 
     // XXX: Linux uses embedded fsid for unique ino. Should we follow the technique?
     pub(crate) fn gen_unique_ino(layer_idx: LayerIdx, fs_ino: u64) -> Result<u64> {
-        if (fs_ino as usize) & Self::HIGHER_MASK != 0 {
+        if fs_ino & 0xFF00_0000_0000_0000 != 0 {
             return_errno_with_message!(Errno::EOVERFLOW, "fs ino overflow");
         }
-        Ok(((layer_idx as u64) << Self::NUM_LOWER_BITS) | fs_ino)
+        Ok(((layer_idx as u64) << 56) | fs_ino)
     }
 
     pub(crate) fn parse_unique_offset(offset: usize) -> (LayerIdx, usize) {

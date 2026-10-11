@@ -39,7 +39,7 @@ use super::{
 };
 use crate::{
     mm::{
-        PageProperty, Vaddr,
+        PageProperty, Vaddr, nr_subpage_per_huge,
         page_table::{PageTableNode, is_valid_range},
     },
     sync::RcuDrop,
@@ -77,6 +77,15 @@ pub(crate) struct Cursor<'rcu, C: PageTableConfig> {
 
 /// The maximum value of `PagingConstsTrait::NR_LEVELS`.
 const MAX_NR_LEVELS: usize = 4;
+
+/// The address bits covered by a page table node, including its entries.
+fn node_range_mask<C: PagingConstsTrait>(level: PagingLevel) -> usize {
+    // A root node can cover the entire address space (e.g., 4 GiB with Sv32).
+    // Its size cannot fit in `usize`, but the corresponding mask still can.
+    page_size::<C>(level)
+        .wrapping_mul(nr_subpage_per_huge::<C>())
+        .wrapping_sub(1)
+}
 
 /// A fragment of a page table that can be taken out of the page table.
 #[must_use]
@@ -279,11 +288,9 @@ impl<'rcu, C: PageTableConfig> Cursor<'rcu, C> {
         debug_assert!(self.barrier_va.contains(&self.va));
 
         loop {
-            let node_size = page_size::<C>(self.level + 1);
-            let node_start = self.va.align_down(node_size);
+            let node_mask = node_range_mask::<C>(self.level);
             // If the address is within the current node, we can jump directly.
-            // Note that `node_start + node_size` may overflow.
-            if node_start <= va && va - node_start < node_size {
+            if self.va & !node_mask == va & !node_mask {
                 self.va = va;
                 return Ok(());
             }
@@ -333,7 +340,7 @@ impl<'rcu, C: PageTableConfig> Cursor<'rcu, C> {
     fn cur_va_range(&self) -> Range<Vaddr> {
         let entry_size = page_size::<C>(self.level);
         let entry_start = self.va.align_down(entry_size);
-        entry_start..entry_start + entry_size
+        entry_start..entry_start.saturating_add(entry_size)
     }
 }
 

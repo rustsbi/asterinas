@@ -129,7 +129,7 @@ struct ExfatInodeInner {
     is_deleted: bool,
 
     /// The hash of its parent inode.
-    parent_hash: usize,
+    parent_hash: u64,
 
     /// A pointer to exFAT fs.
     fs: Weak<ExfatFs>,
@@ -192,7 +192,7 @@ impl BlockAsPageCacheBackend for ExfatInode {
 impl ExfatInodeInner {
     /// The hash_value to index inode. This should be unique in the whole fs.
     /// Currently use dentry set physical position as hash value except for root(0).
-    fn hash_index(&self) -> usize {
+    fn hash_index(&self) -> u64 {
         if self.ino == EXFAT_ROOT_INO {
             return ROOT_INODE_HASH;
         }
@@ -848,7 +848,7 @@ impl ExfatInode {
         Ok(())
     }
 
-    pub(super) fn hash_index(&self) -> usize {
+    pub(super) fn hash_index(&self) -> u64 {
         self.inner.read().hash_index()
     }
 
@@ -920,7 +920,7 @@ impl ExfatInode {
         dentry_set: &ExfatDentrySet,
         dentry_set_position: ExfatChainPosition,
         dentry_entry: u32,
-        parent_hash: usize,
+        parent_hash: u64,
         fs_guard: &MutexGuard<()>,
     ) -> Result<Arc<ExfatInode>> {
         const EXFAT_MINIMUM_DENTRY: usize = 3;
@@ -1032,7 +1032,7 @@ impl ExfatInode {
         chain_pos: ExfatChainPosition,
         file_dentry: &ExfatFileDentry,
         iter: &mut ExfatDentryIterator,
-        parent_hash: usize,
+        parent_hash: u64,
         fs_guard: &MutexGuard<()>,
     ) -> Result<Arc<Self>> {
         let dentry_set = ExfatDentrySet::read_from_iterator(file_dentry, iter)?;
@@ -1383,7 +1383,7 @@ impl FileOps for ExfatInode {
 
             if dir_cnt == 0
                 && visitor
-                    .visit(".", inner.ino, inner.inode_type, 0xFFFFFFFFFFFFFFFEusize)
+                    .visit(".", inner.ino, inner.inode_type, usize::MAX - 1)
                     .is_ok()
             {
                 dir_read += 1;
@@ -1394,10 +1394,7 @@ impl FileOps for ExfatInode {
                 let parent_inner = parent_inode.inner.read();
                 let ino = parent_inner.ino;
                 let type_ = parent_inner.inode_type;
-                if visitor
-                    .visit("..", ino, type_, 0xFFFFFFFFFFFFFFFFusize)
-                    .is_ok()
-                {
+                if visitor.visit("..", ino, type_, usize::MAX).is_ok() {
                     dir_read += 1;
                 }
             }

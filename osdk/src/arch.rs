@@ -14,6 +14,8 @@ use std::fmt::{self, Display, Formatter};
 pub enum Arch {
     #[serde(rename = "aarch64")]
     Aarch64,
+    #[serde(rename = "riscv32")]
+    RiscV32,
     #[serde(rename = "riscv64")]
     RiscV64,
     #[serde(rename = "x86_64")]
@@ -26,6 +28,7 @@ impl ValueEnum for Arch {
     fn value_variants<'a>() -> &'a [Self] {
         &[
             Arch::Aarch64,
+            Arch::RiscV32,
             Arch::RiscV64,
             Arch::X86_64,
             Arch::LoongArch64,
@@ -35,6 +38,7 @@ impl ValueEnum for Arch {
     fn to_possible_value(&self) -> Option<PossibleValue> {
         match self {
             Arch::Aarch64 => Some(PossibleValue::new(self.to_str())),
+            Arch::RiscV32 => Some(PossibleValue::new(self.to_str())),
             Arch::RiscV64 => Some(PossibleValue::new(self.to_str())),
             Arch::X86_64 => Some(PossibleValue::new(self.to_str())),
             Arch::LoongArch64 => Some(PossibleValue::new(self.to_str())),
@@ -47,6 +51,7 @@ impl Arch {
     pub fn triple(&self) -> &'static str {
         match self {
             Arch::Aarch64 => "aarch64-unknown-none-softfloat",
+            Arch::RiscV32 => "riscv32imac-unknown-none-elf",
             Arch::RiscV64 => "riscv64imac-unknown-none-elf",
             Arch::X86_64 => "x86_64-unknown-none",
             Arch::LoongArch64 => "loongarch64-unknown-none-softfloat",
@@ -56,6 +61,7 @@ impl Arch {
     pub fn system_qemu(&self) -> &'static str {
         match self {
             Arch::Aarch64 => "qemu-system-aarch64",
+            Arch::RiscV32 => "qemu-system-riscv32",
             Arch::RiscV64 => "qemu-system-riscv64",
             Arch::X86_64 => "qemu-system-x86_64",
             Arch::LoongArch64 => "qemu-system-loongarch64",
@@ -65,6 +71,7 @@ impl Arch {
     pub fn to_str(self) -> &'static str {
         match self {
             Arch::Aarch64 => "aarch64",
+            Arch::RiscV32 => "riscv32",
             Arch::RiscV64 => "riscv64",
             Arch::X86_64 => "x86_64",
             Arch::LoongArch64 => "loongarch64",
@@ -86,6 +93,7 @@ pub fn get_default_arch() -> Arch {
     if let Ok(arch) = std::env::var("OSDK_TARGET_ARCH") {
         return match arch.as_str() {
             "aarch64" => Arch::Aarch64,
+            "riscv32" => Arch::RiscV32,
             "riscv64" => Arch::RiscV64,
             "x86_64" => Arch::X86_64,
             "loongarch64" => Arch::LoongArch64,
@@ -113,6 +121,7 @@ pub fn get_default_arch() -> Arch {
     match host.split('-').next() {
         Some(host_arch) => match host_arch {
             "aarch64" => Arch::Aarch64,
+            "riscv32gc" => Arch::RiscV32,
             "riscv64gc" => Arch::RiscV64,
             "x86_64" => Arch::X86_64,
             "loongarch64" => Arch::LoongArch64,

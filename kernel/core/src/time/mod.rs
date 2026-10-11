@@ -21,10 +21,10 @@ pub(crate) mod wait;
 pub(crate) type clockid_t = i32;
 pub(crate) type time_t = i64;
 pub(crate) type timer_t = i32;
-pub(crate) type suseconds_t = i64;
+pub(crate) type suseconds_t = isize;
 
 const NSEC_PER_USEC: i64 = 1_000;
-const USEC_PER_SEC: i64 = 1_000_000;
+const USEC_PER_SEC: isize = 1_000_000;
 pub(crate) const NSEC_PER_SEC: i64 = 1_000_000_000;
 
 pub(super) fn init() {
@@ -56,8 +56,8 @@ impl From<Duration> for timespec_t {
 
 impl From<timeval_t> for timespec_t {
     fn from(timeval: timeval_t) -> timespec_t {
-        let sec = timeval.sec;
-        let nsec = timeval.usec * NSEC_PER_USEC;
+        let sec = timeval.sec as time_t;
+        let nsec = timeval.usec as i64 * NSEC_PER_USEC;
         debug_assert!(sec >= 0); // nsec >= 0 always holds
         timespec_t { sec, nsec }
     }
@@ -84,7 +84,7 @@ impl TryFrom<timespec_t> for Duration {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(crate) struct timeval_t {
-    pub sec: time_t,
+    pub sec: isize,
     pub usec: suseconds_t,
 }
 
@@ -105,7 +105,7 @@ impl timeval_t {
 
 impl From<Duration> for timeval_t {
     fn from(duration: Duration) -> timeval_t {
-        let sec = duration.as_secs() as time_t;
+        let sec = duration.as_secs() as isize;
         let usec = duration.subsec_micros() as suseconds_t;
         debug_assert!(sec >= 0); // usec >= 0 always holds
         timeval_t { sec, usec }
@@ -127,7 +127,7 @@ impl TryFrom<timeval_t> for Duration {
 
         Ok(Duration::new(
             timeval.sec as u64,
-            (timeval.usec * NSEC_PER_USEC) as u32,
+            (timeval.usec as i64 * NSEC_PER_USEC) as u32,
         ))
     }
 }

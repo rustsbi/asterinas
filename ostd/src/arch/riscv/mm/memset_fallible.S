@@ -25,7 +25,12 @@ memset_exit:
 .size __memset_fallible, .-__memset_fallible
 
 .pushsection .ex_table, "a", @progbits
-    .balign 8
+    .balign {XLEN} / 8
+  .if {XLEN} == 64
     .quad memset_store
     .quad memset_exit
+  .else
+    .word memset_store
+    .word memset_exit
+  .endif
 .popsection

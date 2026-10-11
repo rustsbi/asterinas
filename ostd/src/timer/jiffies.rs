@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 
-use core::{
-    sync::atomic::{AtomicU64, Ordering},
-    time::Duration,
-};
+use core::{sync::atomic::Ordering, time::Duration};
 
 use super::TIMER_FREQ;
+use crate::sync::atomic::AtomicU64;
 
 /// Jiffies is a term used to denote the units of time measurement by the kernel.
 ///

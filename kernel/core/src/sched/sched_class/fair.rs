@@ -3,12 +3,12 @@
 use alloc::{collections::BinaryHeap, sync::Arc};
 use core::{
     cmp::{self, Reverse},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::atomic::Ordering,
 };
 
 use ostd::{
     cpu::{CpuId, num_cpus},
-    sync::SpinLock,
+    sync::{SpinLock, atomic::AtomicU64},
     task::{
         Task,
         scheduler::{EnqueueFlags, UpdateFlags},

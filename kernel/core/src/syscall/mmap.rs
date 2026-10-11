@@ -64,7 +64,10 @@ fn do_sys_mmap(
     // <https://man7.org/linux/man-pages/man2/mmap.2.html>,
     // Section 5.11.3 from <https://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-vol-3a-part-1-manual.pdf>,
     // <https://riscv.github.io/riscv-isa-manual/snapshot/privileged/#translation>.
-    #[cfg(any(target_arch = "x86_64", target_arch = "riscv64"))]
+    #[cfg(any(
+        target_arch = "x86_64",
+        any(target_arch = "riscv32", target_arch = "riscv64")
+    ))]
     let vm_perms = if !vm_perms.contains(VmPerms::READ) && vm_perms.contains(VmPerms::WRITE) {
         vm_perms | VmPerms::READ
     } else {

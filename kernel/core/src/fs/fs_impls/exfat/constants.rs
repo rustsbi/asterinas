@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #![expect(dead_code)]
-pub(super) const ROOT_INODE_HASH: usize = 0;
+pub(super) const ROOT_INODE_HASH: u64 = 0;
 
 // Other pub(super) constants
 pub(super) const MAX_CHARSET_SIZE: usize = 6;

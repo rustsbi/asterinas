@@ -10,7 +10,10 @@
 #![feature(negative_impls)]
 #![feature(ptr_metadata)]
 #![feature(sync_unsafe_cell)]
-#![cfg_attr(target_arch = "riscv64", feature(riscv_ext_intrinsics))]
+#![cfg_attr(
+    any(target_arch = "riscv64", target_arch = "riscv32"),
+    feature(riscv_ext_intrinsics)
+)]
 #![cfg_attr(target_arch = "x86_64", feature(iter_advance_by, macro_metavar_expr))]
 #![expect(internal_features)]
 #![no_std]
@@ -28,7 +31,10 @@ macro_rules! __log_prefix {
 }
 
 #[cfg_attr(target_arch = "x86_64", path = "arch/x86/mod.rs")]
-#[cfg_attr(target_arch = "riscv64", path = "arch/riscv/mod.rs")]
+#[cfg_attr(
+    any(target_arch = "riscv64", target_arch = "riscv32"),
+    path = "arch/riscv/mod.rs"
+)]
 #[cfg_attr(target_arch = "loongarch64", path = "arch/loongarch/mod.rs")]
 #[cfg_attr(target_arch = "aarch64", path = "arch/arm/mod.rs")]
 pub mod arch;
@@ -153,10 +159,14 @@ fn invoke_ffi_init_funcs() {
         fn __sinit_array();
         fn __einit_array();
     }
-    let call_len = (__einit_array as *const () as usize - __sinit_array as *const () as usize) / 8;
+    let entry_size = size_of::<fn()>();
+    let call_len =
+        (__einit_array as *const () as usize - __sinit_array as *const () as usize) / entry_size;
     for i in 0..call_len {
+        // SAFETY: The linker collects an array of native-width function pointers
+        // between these symbols, and each constructor is called once at bootstrap.
         unsafe {
-            let function = (__sinit_array as *const () as usize + 8 * i) as *const fn();
+            let function = (__sinit_array as *const () as usize + entry_size * i) as *const fn();
             (*function)();
         }
     }

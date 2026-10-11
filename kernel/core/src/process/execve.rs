@@ -125,7 +125,7 @@ fn read_cstring_vec(
     let user_space = ctx.user_space();
     for _ in 0..max_string_number {
         let cstring_ptr = user_space.read_val::<usize>(read_addr)?;
-        read_addr += 8;
+        read_addr += size_of::<usize>();
 
         if cstring_ptr == 0 {
             return Ok(res);

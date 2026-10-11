@@ -226,6 +226,10 @@ const PREBUILT_VDSO_LIB: &[u8] =
 #[cfg(target_arch = "riscv64")]
 const PREBUILT_VDSO_LIB: &[u8] =
     include_bytes!(concat!(env!("VDSO_LIBRARY_DIR"), "/vdso_riscv64.so"));
+// Built from tools/rv32-vdso with a syscall fallback for the RV32 time64 ABI.
+#[cfg(target_arch = "riscv32")]
+const PREBUILT_VDSO_LIB: &[u8] =
+    include_bytes!(concat!(env!("VDSO_LIBRARY_DIR"), "/vdso_riscv32.so"));
 
 /// The offset from the vDSO base to the `__vdso_rt_sigreturn` function.
 ///
@@ -233,6 +237,10 @@ const PREBUILT_VDSO_LIB: &[u8] =
 /// `readelf -s vdso_riscv64.so | grep '__vdso_rt_sigreturn'`.
 #[cfg(target_arch = "riscv64")]
 pub(crate) const __VDSO_RT_SIGRETURN_OFFSET: usize = 0x5b0;
+
+// The linker script tools/rv32-vdso/vdso.ld fixes this entry point at 0x800.
+#[cfg(target_arch = "riscv32")]
+pub(crate) const __VDSO_RT_SIGRETURN_OFFSET: usize = 0x800;
 
 impl Vdso {
     /// Constructs a new `Vdso`, including an initialized `VdsoData` and a VMO of the vDSO.
@@ -409,7 +417,7 @@ pub(crate) const VDSO_VMO_LAYOUT: VdsoVmoLayout = VdsoVmoLayout {
     size: 5 * PAGE_SIZE,
 };
 
-#[cfg(target_arch = "riscv64")]
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 pub(crate) const VDSO_VMO_LAYOUT: VdsoVmoLayout = VdsoVmoLayout {
     // https://elixir.bootlin.com/linux/v6.2.10/source/arch/riscv/kernel/vdso.c#L247
     data_segment_offset: 0,

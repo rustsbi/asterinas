@@ -50,6 +50,7 @@ macro_rules! for_aligned_chunks {
                     // and alignment requirements for this chunk size.
                     unsafe { $op::<u32>($($arg),*) }
                 }
+                #[cfg(target_pointer_width = "64")]
                 8 => {
                     // SAFETY: The caller of the enclosing function guarantees pointer validity
                     // and alignment requirements for this chunk size.
@@ -75,7 +76,7 @@ pub(crate) fn for_each_chunk_with_max(
 
     let mut copied_total = 0;
     let mut remaining = count;
-    let max_log2 = max_chunk.trailing_zeros();
+    let max_log2 = max_chunk.min(size_of::<usize>()).trailing_zeros();
 
     while remaining > 0 {
         let addr_align_log2 = io_addr.trailing_zeros();
@@ -171,6 +172,7 @@ pub(crate) unsafe fn memset_mmio_val<T: PodOnce>(dst_io_ptr: &mut *mut u8, value
             1 => write_once((*dst_io_ptr).cast::<u8>(), repeated as u8),
             2 => write_once((*dst_io_ptr).cast::<u16>(), repeated as u16),
             4 => write_once((*dst_io_ptr).cast::<u32>(), repeated as u32),
+            #[cfg(target_pointer_width = "64")]
             8 => write_once((*dst_io_ptr).cast::<u64>(), repeated),
             _ => core::hint::unreachable_unchecked(),
         }

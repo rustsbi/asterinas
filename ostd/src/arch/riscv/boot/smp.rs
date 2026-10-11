@@ -7,11 +7,14 @@ use core::arch::global_asm;
 use crate::{
     boot::smp::{PerApRawInfo, ap_early_entry},
     cpu_local_cell,
-    mm::{Paddr, Vaddr},
+    mm::Paddr,
 };
 
 // Include the AP boot assembly code
+#[cfg(target_arch = "riscv64")]
 global_asm!(include_str!("ap_boot.S"));
+#[cfg(target_arch = "riscv32")]
+global_asm!(include_str!("ap_boot32.S"));
 
 pub(crate) fn count_processors() -> Option<u32> {
     let mut hart_count = 0;
@@ -145,8 +148,9 @@ unsafe fn fill_boot_page_table_ptr(pt_ptr: Paddr) {
     }
 }
 
+#[cfg(target_arch = "riscv64")]
 fn get_ap_boot_start_addr() -> Paddr {
-    const KERNEL_VMA: Vaddr = 0xffffffff00000000;
+    const KERNEL_VMA: crate::mm::Vaddr = 0xffffffff00000000;
 
     let addr: Paddr;
 
@@ -162,6 +166,22 @@ fn get_ap_boot_start_addr() -> Paddr {
     }
 
     addr - KERNEL_VMA
+}
+
+#[cfg(target_arch = "riscv32")]
+fn get_ap_boot_start_addr() -> Paddr {
+    let addr: Paddr;
+    // SAFETY: This only materializes the physical linker symbol; it does not
+    // dereference it while executing in the virtual address space.
+    unsafe {
+        core::arch::asm!(
+            "lui {addr}, %hi(ap_boot_start)",
+            "addi {addr}, {addr}, %lo(ap_boot_start)",
+            addr = out(reg) addr,
+            options(nomem, nostack),
+        );
+    }
+    addr
 }
 
 fn get_bootstrap_hart_id() -> u32 {

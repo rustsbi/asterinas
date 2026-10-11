@@ -6,7 +6,7 @@
 # We explicitly add this directive due to a known bug in how rustc treats target
 # features in `global_asm`. Check https://github.com/rust-lang/rust/issues/111637#issuecomment-1870096878
 # for details.
-.option arch, rv64imac
+.option arch, +a
 
 # Atomically compares and exchanges a 32-bit integer value. This function works
 # with exception handling and can recover from a page fault.
@@ -25,10 +25,16 @@ cmpxchg_store:
     bnez t1, cmpxchg_load
 cmpxchg_done:
     mv a0, t0
+  .if {XLEN} == 32
+    li a1, 0
+  .endif
     csrc sstatus, t2
     ret
 cmpxchg_fault:
     li a0, -1
+  .if {XLEN} == 32
+    li a1, -1
+  .endif
     csrc sstatus, t2
     ret
 .size __atomic_cmpxchg_fallible, .-__atomic_cmpxchg_fallible
@@ -36,9 +42,16 @@ cmpxchg_fault:
 .option pop
 
 .pushsection .ex_table, "a", @progbits
-    .balign 8
+    .balign {XLEN} / 8
+  .if {XLEN} == 64
     .quad cmpxchg_load
     .quad cmpxchg_fault
     .quad cmpxchg_store
     .quad cmpxchg_fault
+  .else
+    .word cmpxchg_load
+    .word cmpxchg_fault
+    .word cmpxchg_store
+    .word cmpxchg_fault
+  .endif
 .popsection

@@ -240,7 +240,7 @@ fn build_kernel_elf(
         // It makes running on Intel CPUs after Ivy Bridge (2012) faster, but much slower
         // on older CPUs.
         rustflags.push("-C target-feature=+ermsb");
-    } else if matches!(arch, Arch::RiscV64) {
+    } else if matches!(arch, Arch::RiscV32 | Arch::RiscV64) {
         // Enable the Zicbom extension for RISC-V to support cache block operations.
         rustflags.push("-C target-feature=+zicbom");
     }

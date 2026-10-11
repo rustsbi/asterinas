@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MPL-2.0
 
-use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use core::sync::atomic::{AtomicU32, Ordering};
 
 use aster_rights::{ReadDupOp, ReadOp, ReadWriteOp};
 use aster_util::fixed_str::FixedCStr;
 use ostd::{
-    sync::{RoArc, RwMutexReadGuard, Waker},
+    sync::{RoArc, RwMutexReadGuard, Waker, atomic::AtomicU64},
     task::Task,
 };
 use spin::Once;

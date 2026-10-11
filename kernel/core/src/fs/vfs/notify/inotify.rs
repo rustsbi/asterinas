@@ -2,12 +2,13 @@
 
 use core::{
     fmt::Display,
-    sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
+    sync::atomic::{AtomicBool, AtomicU32, Ordering},
 };
 
 use align_ext::AlignExt;
 use bitflags::bitflags;
 use hashbrown::HashMap;
+use ostd::sync::atomic::AtomicU64;
 
 use crate::{
     events::IoEvents,
