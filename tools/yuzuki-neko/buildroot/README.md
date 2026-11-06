@@ -53,14 +53,48 @@ BusyBox's self-execution path is explicitly `/bin/busybox`: the current
 Asterinas `/proc/self/exe` points to the script when executing `/init` through
 its shebang, so the BusyBox default would recursively execute the init script.
 
-## Kernel
+## Kernel and NOR image
 
 Build the kernel as described in the [Neko port documentation](../README.md):
 
 ```sh
 bash tools/yuzuki-neko/build.sh --arch riscv32 \
     target/neko-buildroot/output/images/rootfs.cpio 0x40500000
+
+python3 tools/yuzuki-neko/build-nor.py \
+    --kernel target/yuzuki-neko-rv32/kernel.elf \
+    --dtb target/yuzuki-neko-rv32/yuzuki-neko.dtb \
+    --initramfs target/neko-buildroot/output/images/rootfs.cpio \
+    --sbi /path/to/rustsbi/fw_jump.bin \
+    --spl /path/to/spinor-boot_spi.bin \
+    --output-dir target/neko-buildroot/nor
 ```
+
+Use the previously verified RV32 RustSBI 0.4.1 jump firmware at `0x40f80000`
+and the SyterKit Neko RV32 SPI NOR SPL with D-cache disabled. Its source is
+`luojia65/SyterKit` commit `3bf4f61fc7a1a40137a49482e1a225fef0b97a42`, with the
+pre-SBI D-cache enable block removed. The RAM-only USB SPL is not suitable.
+The NOR SPL must use these fixed slots:
+
+| Payload | NOR offset | Load address | Slot size |
+| --- | --- | --- | --- |
+| SPL | `0x000000` | `0x00020000` | 64 KiB |
+| DTB | `0x010000` | `0x40f40000` | 256 KiB |
+| RustSBI | `0x050000` | `0x40f80000` | 512 KiB |
+| Kernel | `0x0d0000` | `0x40000000` | 5 MiB |
+| Initramfs | `0x5d0000` | `0x40500000` | 1 MiB |
+
+The SPL copies the kernel and initramfs slots together as a fixed 6 MiB region.
+The image builder checks the SPL header/checksum and kernel memory layout,
+updates the DTB initrd range, and produces `asterinas-buildroot-nor.bin` and
+a SHA-256 manifest. Its default `loglevel=3` keeps routine kernel messages
+away from the shell; use `--loglevel 6` or `8` for diagnostics. The kernel's
+existing `WEXITED` warning does not prevent waitid from reaping children.
+
+The combined image occupies NOR `0..0x6d0000`; the previous rootfs and `/data`
+above that range remain outside the image. Back up the entire 16 MiB NOR
+before writing, then read it back to verify both the new image and the
+preserved range. Building these files does not access or flash a board.
 
 ## Serial use
 

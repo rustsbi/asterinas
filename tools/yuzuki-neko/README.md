@@ -124,6 +124,8 @@ For RV64, the
 supports `--arch rv64`, `FW_TEXT_START=0x40f80000` and
 `FW_JUMP_ADDR=0x40000000`; check its runtime size separately.
 `build.sh` does not access the board or create a NOR flash image.
+Use `build-nor.py` to pack existing firmware payloads; see
+[the Buildroot guide](buildroot/README.md).
 
 ## QEMU and validation
 
