@@ -144,10 +144,10 @@ fn parse_memory_regions(device_tree_paddr: usize) -> MemoryRegionArray {
 }
 
 fn parse_initramfs_range() -> Option<(usize, usize)> {
-    let chosen = DEVICE_TREE.get().unwrap().find_node("/chosen").unwrap();
+    let chosen = DEVICE_TREE.get().unwrap().find_node("/chosen")?;
     let initrd_start = chosen.property("linux,initrd-start")?.as_usize()?;
     let initrd_end = chosen.property("linux,initrd-end")?.as_usize()?;
-    Some((initrd_start, initrd_end))
+    (initrd_start < initrd_end).then_some((initrd_start, initrd_end))
 }
 
 static mut BOOTSTRAP_HART_ID: u32 = u32::MAX;
