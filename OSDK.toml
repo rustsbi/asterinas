@@ -51,6 +51,25 @@ boot.method = "vmm-direct"
 build.strip_elf = false
 qemu.args = "$(./tools/qemu_args.sh riscv)"
 
+[scheme."riscv32"]
+supported_archs = ["riscv32"]
+boot.method = "vmm-direct"
+build.strip_elf = false
+build.no_default_features = true
+qemu.args = """\
+    -cpu rv32,zicbom=true,zkr=true \
+    -machine virt \
+    -m 128M \
+    -smp 1 \
+    -no-reboot \
+    -nographic \
+    -display none \
+    -serial chardev:mux \
+    -monitor chardev:mux \
+    -chardev stdio,id=mux,mux=on,signal=off,logfile=qemu.log
+"""
+
+
 [scheme."sifive_u"]
 supported_archs = ["riscv64"]
 build.features = ["riscv_sv39_mode"]
