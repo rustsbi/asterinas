@@ -51,6 +51,15 @@ boot.method = "vmm-direct"
 build.strip_elf = false
 qemu.args = "$(./tools/qemu_args.sh riscv)"
 
+[scheme."yuzuki-neko"]
+supported_archs = ["riscv64"]
+boot.method = "vmm-direct"
+build.profile = "release-lto"
+build.features = ["riscv_sv39_mode"]
+build.no_default_features = true
+# This scheme builds an ELF for the board loader. QEMU has no F101 machine.
+qemu.args = ""
+
 [scheme."riscv32"]
 supported_archs = ["riscv32"]
 boot.method = "vmm-direct"
@@ -69,6 +78,14 @@ qemu.args = """\
     -chardev stdio,id=mux,mux=on,signal=off,logfile=qemu.log
 """
 
+[scheme."yuzuki-neko-rv32"]
+supported_archs = ["riscv32"]
+boot.method = "vmm-direct"
+build.profile = "release-lto"
+build.no_default_features = true
+build.rustflags = "-C link-arg=--defsym=KERNEL_LMA=0x40000000"
+# This scheme builds an ELF for the board loader. QEMU has no F101 machine.
+qemu.args = ""
 
 [scheme."sifive_u"]
 supported_archs = ["riscv64"]
