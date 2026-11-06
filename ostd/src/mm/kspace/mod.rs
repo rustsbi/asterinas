@@ -280,6 +280,16 @@ pub(crate) fn init_kernel_page_table(meta_pages: Segment<MetaPageMeta>) {
     // Do linear mappings for the kernel.
     {
         let max_paddr = crate::mm::frame::max_paddr();
+        // Keep reserved tail RAM containing the live firmware DTB accessible.
+        #[cfg(any(target_arch = "riscv64", target_arch = "riscv32"))]
+        let max_paddr = crate::arch::boot::DEVICE_TREE
+            .get()
+            .unwrap()
+            .memory()
+            .regions()
+            .filter_map(|region| (region.starting_address as usize).checked_add(region.size?))
+            .fold(max_paddr, usize::max)
+            .next_multiple_of(PAGE_SIZE);
         let from = LINEAR_MAPPING_BASE_VADDR..LINEAR_MAPPING_BASE_VADDR + max_paddr;
         let prop = PageProperty {
             flags: PageFlags::RW,
