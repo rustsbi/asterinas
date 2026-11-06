@@ -15,7 +15,7 @@ spin.workspace = true
 [target.x86_64-unknown-none.dependencies]
 chrono.workspace = true
 
-[target.riscv64imac-unknown-none-elf.dependencies]
+[target.'cfg(any(target_arch = "riscv32", target_arch = "riscv64"))'.dependencies]
 fdt-util.workspace = true
 
 [target.loongarch64-unknown-none-softfloat.dependencies]

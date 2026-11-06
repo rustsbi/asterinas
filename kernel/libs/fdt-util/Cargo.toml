@@ -5,7 +5,7 @@ edition.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[target.riscv64imac-unknown-none-elf.dependencies]
+[target.'cfg(any(target_arch = "riscv32", target_arch = "riscv64"))'.dependencies]
 fdt.workspace = true
 ostd.workspace = true
 
