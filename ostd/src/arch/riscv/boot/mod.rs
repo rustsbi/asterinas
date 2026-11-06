@@ -2,6 +2,7 @@
 
 //! The RISC-V boot module defines the entrypoints of Asterinas.
 
+mod device_tree;
 pub(crate) mod smp;
 
 use core::arch::global_asm;
@@ -170,8 +171,9 @@ unsafe extern "C" fn riscv_boot(hart_id: usize, device_tree_paddr: usize) -> ! {
     unsafe { BOOTSTRAP_HART_ID = hart_id as u32 };
 
     let device_tree_ptr = paddr_to_vaddr(device_tree_paddr) as *const u8;
-    // SAFETY: The caller ensures the correctness of `device_tree_ptr`.
-    let fdt = unsafe { Fdt::from_ptr(device_tree_ptr).unwrap() };
+    // SAFETY: The caller provides a valid immutable DTB. Only the BSP calls
+    // this entrypoint, once, before starting other harts or publishing the tree.
+    let fdt = unsafe { device_tree::from_ptr(device_tree_ptr) };
     DEVICE_TREE.call_once(|| fdt);
 
     use crate::boot::{EARLY_INFO, EarlyBootInfo, start_kernel};
