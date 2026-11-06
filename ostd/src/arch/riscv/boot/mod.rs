@@ -15,7 +15,6 @@ use crate::{
         BootloaderAcpiArg, BootloaderFramebufferArg,
         memory_region::{MemoryRegion, MemoryRegionArray, MemoryRegionType},
     },
-    early_println,
     mm::paddr_to_vaddr,
 };
 
@@ -26,7 +25,7 @@ global_asm!(include_str!("bsp_boot32.S"), early_boot_trap = sym early_boot_trap)
 
 #[cfg(target_arch = "riscv32")]
 extern "C" fn early_boot_trap(cause: usize, epc: usize, tval: usize) -> ! {
-    early_println!(
+    crate::early_println!(
         "Early boot trap: scause={:#x}, sepc={:#x}, stval={:#x}",
         cause,
         epc,
@@ -163,8 +162,6 @@ static mut BOOTSTRAP_HART_ID: u32 = u32::MAX;
 // SAFETY: The name does not collide with other symbols.
 #[unsafe(no_mangle)]
 unsafe extern "C" fn riscv_boot(hart_id: usize, device_tree_paddr: usize) -> ! {
-    early_println!("Enter riscv_boot");
-
     // We will only write it once. Other processors will only read it.
     // SAFETY: We don't create Rust references, so there are no aliasing problems. Other processors
     // have not been booted yet, so there are no data races.
