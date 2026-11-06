@@ -114,15 +114,16 @@ impl Pollee {
             return check() & mask;
         }
 
-        // We will store `task_ptr` in `state` to indicate that we're checking the events. But we
-        // need to make sure it's a negative value.
+        // Encode the task identity as a negative value even when the kernel's
+        // address range is not entirely negative (Sv32). Task alignment makes
+        // the shift lossless and keeps this value distinct from INV_STATE.
         const {
-            use ostd::mm::KERNEL_VADDR_RANGE;
-            assert!((KERNEL_VADDR_RANGE.start as isize) < 0);
+            assert!(align_of::<Task>() >= 4);
         }
-        let task_ptr = Task::current().unwrap().as_ref() as *const _ as isize;
+        let task_ptr = Task::current().unwrap().as_ref() as *const _ as usize;
+        let task_state = ((task_ptr >> 1) | isize::MIN as usize) as isize;
 
-        // Store `task_ptr` in `state` to indicate we're checking the events.
+        // Store `task_state` to indicate we're checking the events.
         //
         // Note that:
         // * If there are race conditions, `state` may contain something other than `INV_STATE` (as
@@ -130,7 +131,7 @@ impl Pollee {
         // * Given the first point, we only need to do a store here. However, we need the `Acquire`
         //   order, which forces us to do a `swap` operation. We ignore the returned value to allow
         //   the compiler to produce better assembly code.
-        let _ = self.inner.state.swap(task_ptr, Ordering::Acquire);
+        let _ = self.inner.state.swap(task_state, Ordering::Acquire);
 
         // Check events after the registration to prevent race conditions.
         let new_events = check();
@@ -141,7 +142,7 @@ impl Pollee {
         //
         // Otherwise, we cache nothing, but returning the obsolete events is still okay.
         let _ = self.inner.state.compare_exchange_weak(
-            task_ptr,
+            task_state,
             new_events.bits() as _,
             Ordering::Release,
             Ordering::Relaxed,
