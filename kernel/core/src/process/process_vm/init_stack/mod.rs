@@ -283,7 +283,7 @@ impl InitStackWriter<'_> {
 
         // Write argc.
         let argc = self.argv.len();
-        self.write_u64(argc as u64)?;
+        self.write_word(argc as u64)?;
 
         // Ensure the stack top is 16-byte aligned.
         debug_assert_eq!(self.pos() & !0xf, self.pos());
@@ -318,25 +318,25 @@ impl InitStackWriter<'_> {
     /// Ensures that the top address of the user stack is 16-byte aligned.
     ///
     /// The 16-byte alignment is required by x86-64 System V ABI.
-    /// To meet that requirement, this method may write some extra 8-byte `u64`s.
+    /// This method pads with native-width words, including for the RV32 ABI.
     fn adjust_stack_alignment(&self, envp_pointers: &[u64], argv_pointers: &[u64]) -> Result<()> {
-        // Ensure 8-byte alignment.
-        self.write_u64(0)?;
-        let auxvec_size = (self.auxvec.table().len() + 1) * (size_of::<u64>() * 2);
-        let envp_pointers_size = (envp_pointers.len() + 1) * size_of::<u64>();
-        let argv_pointers_size = (argv_pointers.len() + 1) * size_of::<u64>();
-        let argc_size = size_of::<u64>();
+        // Align to a native word before padding to the 16-byte ABI boundary.
+        self.write_word(0)?;
+        let auxvec_size = (self.auxvec.table().len() + 1) * (size_of::<usize>() * 2);
+        let envp_pointers_size = (envp_pointers.len() + 1) * size_of::<usize>();
+        let argv_pointers_size = (argv_pointers.len() + 1) * size_of::<usize>();
+        let argc_size = size_of::<usize>();
         let to_write_size = auxvec_size + envp_pointers_size + argv_pointers_size + argc_size;
-        if !(self.pos() - to_write_size).is_multiple_of(16) {
-            self.write_u64(0)?;
+        while !(self.pos() - to_write_size).is_multiple_of(16) {
+            self.write_word(0)?;
         }
         Ok(())
     }
 
     fn write_aux_vec(&self) -> Result<()> {
         // Write a NULL auxiliary entry.
-        self.write_u64(0)?;
-        self.write_u64(AuxKey::AT_NULL as u64)?;
+        self.write_word(0)?;
+        self.write_word(AuxKey::AT_NULL as u64)?;
         // Write the auxiliary vector.
         let aux_vec: Vec<_> = self
             .auxvec
@@ -345,38 +345,44 @@ impl InitStackWriter<'_> {
             .map(|(aux_key, aux_value)| (*aux_key, *aux_value))
             .collect();
         for (aux_key, aux_value) in aux_vec.iter() {
-            self.write_u64(*aux_value)?;
-            self.write_u64(*aux_key as u64)?;
+            self.write_word(*aux_value)?;
+            self.write_word(*aux_key as u64)?;
         }
         Ok(())
     }
 
     fn write_envp_pointers(&self, mut envp_pointers: Vec<u64>) -> Result<()> {
         // Write a NULL pointer.
-        self.write_u64(0)?;
+        self.write_word(0)?;
         // Write envp pointers.
         envp_pointers.reverse();
         for envp_pointer in envp_pointers {
-            self.write_u64(envp_pointer)?;
+            self.write_word(envp_pointer)?;
         }
         Ok(())
     }
 
     fn write_argv_pointers(&self, mut argv_pointers: Vec<u64>) -> Result<()> {
         // Write a NULL pointer.
-        self.write_u64(0)?;
+        self.write_word(0)?;
         // Write argv pointers.
         argv_pointers.reverse();
         for argv_pointer in argv_pointers {
-            self.write_u64(argv_pointer)?;
+            self.write_word(argv_pointer)?;
         }
         Ok(())
     }
 
-    /// Writes a `u64` to the stack.
+    /// Writes a native-width word to the stack.
     /// Returns the writing address.
-    fn write_u64(&self, val: u64) -> Result<u64> {
-        let new_pos = self.reserve_pos(size_of::<u64>(), align_of::<u64>())?;
+    fn write_word(&self, val: u64) -> Result<u64> {
+        let new_pos = self.reserve_pos(size_of::<usize>(), align_of::<usize>())?;
+        let val = usize::try_from(val).map_err(|_| {
+            Error::with_message(
+                Errno::EOVERFLOW,
+                "the initial stack word exceeds the native ABI",
+            )
+        })?;
         let bytes = val.to_ne_bytes();
         let mut reader = VmReader::from(bytes.as_slice()).to_fallible();
         self.vmo.write(new_pos - self.map_addr, &mut reader)?;
