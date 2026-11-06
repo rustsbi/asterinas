@@ -476,8 +476,23 @@ impl VmMapping {
             match item {
                 Some(VmQueriedItem::MappedRam { frame, mut prop }) => {
                     if VmPerms::from(prop.flags).contains(required_perms) {
-                        // The page fault is already handled maybe by other threads.
-                        // Just flush the TLB and return.
+                        #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+                        {
+                            // Some RISC-V CPUs fault instead of updating A/D bits.
+                            // Granting write permission still goes through the
+                            // VMO and COW checks below.
+                            let mut access_flags = PageFlags::ACCESSED;
+                            if is_write {
+                                access_flags |= PageFlags::DIRTY;
+                            }
+                            if !prop.flags.contains(access_flags) {
+                                cursor.protect_next(PAGE_SIZE, |flags, _cache| {
+                                    *flags |= access_flags;
+                                });
+                            }
+                        }
+                        // Also discard a stale TLB entry if another thread has
+                        // already resolved this fault.
                         TlbFlushOp::for_range(va).perform_on_current();
                         return Ok(());
                     }
