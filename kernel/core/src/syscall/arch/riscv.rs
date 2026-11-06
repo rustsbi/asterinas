@@ -5,6 +5,12 @@
 #[path = "./generic.rs"]
 mod generic;
 
+#[cfg(target_arch = "riscv32")]
+#[path = "./riscv32.rs"]
+mod rv32;
+#[cfg(target_arch = "riscv32")]
+pub(crate) use rv32::syscall_dispatch as syscall_dispatch_rv32;
+
 use crate::{prelude::*, syscall::SyscallReturn};
 
 generic::define_syscalls_with_generic_syscall_table! {

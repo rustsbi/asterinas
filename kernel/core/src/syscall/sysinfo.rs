@@ -13,18 +13,19 @@ use crate::{prelude::*, process::pid_table, sched::loadavg};
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 struct SysInfo {
-    uptime: i64,     /* Seconds since boot */
-    loads: [u64; 3], /* 1, 5, and 15 minute load averages */
-    totalram: u64,   /* Total usable main memory size */
-    freeram: u64,    /* Available memory size */
-    sharedram: u64,  /* Amount of shared memory */
-    bufferram: u64,  /* Memory used by buffers */
-    totalswap: u64,  /* Total swap space size */
-    freeswap: u64,   /* swap space still available */
-    procs: u16,      /* Number of current processes */
-    totalhigh: u64,  /* Total high memory size */
-    freehigh: u64,   /* Available high memory size */
-    mem_unit: u32,   /* Memory unit size in bytes */
+    uptime: isize,     /* Seconds since boot */
+    loads: [usize; 3], /* 1, 5, and 15 minute load averages */
+    totalram: usize,   /* Total usable main memory size */
+    freeram: usize,    /* Available memory size */
+    sharedram: usize,  /* Amount of shared memory */
+    bufferram: usize,  /* Memory used by buffers */
+    totalswap: usize,  /* Total swap space size */
+    freeswap: usize,   /* swap space still available */
+    procs: u16,        /* Number of current processes */
+    totalhigh: usize,  /* Total high memory size */
+    freehigh: usize,   /* Available high memory size */
+    mem_unit: u32,     /* Memory unit size in bytes */
+    _padding: [u8; 20 - 2 * size_of::<usize>() - size_of::<u32>()],
 }
 
 pub(super) fn sys_sysinfo(sysinfo_addr: Vaddr, ctx: &Context) -> Result<SyscallReturn> {
@@ -32,17 +33,16 @@ pub(super) fn sys_sysinfo(sysinfo_addr: Vaddr, ctx: &Context) -> Result<SyscallR
 
     let loadavg = loadavg::get_loadavg();
     let info = SysInfo {
-        uptime: read_monotonic_time().as_secs_round_up() as i64,
+        uptime: read_monotonic_time().as_secs_round_up() as isize,
         loads: [
-            SysinfoLoadAvg::from(loadavg[0]).raw(),
-            SysinfoLoadAvg::from(loadavg[1]).raw(),
-            SysinfoLoadAvg::from(loadavg[2]).raw(),
+            SysinfoLoadAvg::from(loadavg[0]).raw() as usize,
+            SysinfoLoadAvg::from(loadavg[1]).raw() as usize,
+            SysinfoLoadAvg::from(loadavg[2]).raw() as usize,
         ],
-        totalram: crate::vm::mem_total() as u64,
-        freeram: osdk_frame_allocator::load_total_free_size() as u64,
+        totalram: crate::vm::mem_total() as usize,
+        freeram: osdk_frame_allocator::load_total_free_size() as usize,
         procs: pid_table::pid_table_mut().process_count() as u16,
-        // `mem_unit` will always be 1 byte since Asterinas only supports
-        // 64-bit CPU architectures.
+        // The physical memory allocator represents its byte counts with native words.
         mem_unit: 1,
         ..Default::default() // TODO: add other system information
     };

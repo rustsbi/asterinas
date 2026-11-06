@@ -68,31 +68,31 @@ pub(super) struct rusage_t {
     /// system time used
     pub ru_stime: timeval_t,
     /// maximum resident set size
-    pub ru_maxrss: u64,
+    pub ru_maxrss: usize,
     /// integral shared memory size
-    pub ru_ixrss: u64,
+    pub ru_ixrss: usize,
     /// integral unshared data size
-    pub ru_idrss: u64,
+    pub ru_idrss: usize,
     /// integral unshared stack size
-    pub ru_isrss: u64,
+    pub ru_isrss: usize,
     /// page reclaims
-    pub ru_minflt: u64,
+    pub ru_minflt: usize,
     /// page faults
-    pub ru_majflt: u64,
+    pub ru_majflt: usize,
     /// swaps
-    pub ru_nswap: u64,
+    pub ru_nswap: usize,
     /// block input operations
-    pub ru_inblock: u64,
+    pub ru_inblock: usize,
     /// block output operations
-    pub ru_oublock: u64,
+    pub ru_oublock: usize,
     /// messages sent
-    pub ru_msgsnd: u64,
+    pub ru_msgsnd: usize,
     /// messages received
-    pub ru_msgrcv: u64,
+    pub ru_msgrcv: usize,
     /// signals received
-    pub ru_nsignals: u64,
+    pub ru_nsignals: usize,
     /// voluntary ctx switches
-    pub ru_nvcsw: u64,
+    pub ru_nvcsw: usize,
     /// involuntary
-    pub ru_nivcsw: u64,
+    pub ru_nivcsw: usize,
 }

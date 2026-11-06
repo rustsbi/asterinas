@@ -34,6 +34,28 @@ pub(super) fn sys_clock_gettime(
     Ok(SyscallReturn::Return(0))
 }
 
+#[cfg(target_arch = "riscv32")]
+pub(super) fn sys_clock_getres(
+    clockid: clockid_t,
+    timespec_addr: Vaddr,
+    ctx: &Context,
+) -> Result<SyscallReturn> {
+    let id = ClockId::try_from(clockid)?;
+    let frequency = match id {
+        ClockId::CLOCK_REALTIME_COARSE
+        | ClockId::CLOCK_MONOTONIC_COARSE
+        | ClockId::CLOCK_PROCESS_CPUTIME_ID
+        | ClockId::CLOCK_THREAD_CPUTIME_ID => ostd::timer::TIMER_FREQ,
+        _ => aster_time::default_clocksource().freq(),
+    };
+    if timespec_addr != 0 {
+        let resolution = Duration::from_nanos(1_000_000_000u64.div_ceil(frequency));
+        ctx.user_space()
+            .write_val(timespec_addr, &timespec_t::from(resolution))?;
+    }
+    Ok(SyscallReturn::Return(0))
+}
+
 // The hard-coded clock IDs.
 #[expect(non_camel_case_types)]
 #[repr(i32)]

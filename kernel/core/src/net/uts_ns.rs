@@ -171,6 +171,7 @@ impl UtsName {
     /// The machine name.
     pub(crate) const MACHINE: &str = cfg_select! {
         target_arch = "x86_64" => "x86_64",
+        target_arch = "riscv32" => "riscv32",
         target_arch = "riscv64" => "riscv64",
         target_arch = "loongarch64" => "loongarch64",
         target_arch = "aarch64" => "aarch64",

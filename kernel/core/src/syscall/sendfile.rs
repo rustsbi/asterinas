@@ -26,10 +26,12 @@ pub(super) fn sys_sendfile(
     let offset = if offset_ptr == 0 {
         None
     } else {
-        let offset: isize = ctx.user_space().read_val(offset_ptr)?;
+        let offset: i64 = ctx.user_space().read_val(offset_ptr)?;
         if offset < 0 {
             return_errno_with_message!(Errno::EINVAL, "offset cannot be negative");
         }
+        usize::try_from(offset)
+            .map_err(|_| Error::with_message(Errno::EOVERFLOW, "offset exceeds the VFS limit"))?;
         Some(offset)
     };
 
@@ -38,7 +40,7 @@ pub(super) fn sys_sendfile(
         out_fd, in_fd, offset, count
     );
 
-    if offset.is_some_and(|off| off.checked_add(count).is_none()) {
+    if offset.is_some_and(|off| off.checked_add(count as i64).is_none()) {
         return_errno_with_message!(Errno::EINVAL, "offset + count overflows");
     }
 
@@ -120,7 +122,7 @@ pub(super) fn sys_sendfile(
     const BUFFER_SIZE: usize = PAGE_SIZE;
     let mut buffer = vec![0u8; BUFFER_SIZE].into_boxed_slice();
     let mut total_len = 0;
-    let mut offset = offset.map(|offset| offset.cast_unsigned());
+    let mut offset = offset.map(|offset| offset as usize);
     let mut short_write_occurs = false;
 
     while total_len < count {
@@ -184,7 +186,7 @@ pub(super) fn sys_sendfile(
     }
 
     if let Some(offset) = offset {
-        ctx.user_space().write_val(offset_ptr, &(offset as isize))?;
+        ctx.user_space().write_val(offset_ptr, &(offset as i64))?;
     } else if short_write_occurs {
         // Seek `in_file` to the position corresponding to the last byte actually transferred.
         // Note: Since the file offset lock is not held
