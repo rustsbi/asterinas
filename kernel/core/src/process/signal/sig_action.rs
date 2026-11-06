@@ -31,11 +31,16 @@ impl From<sigaction_t> for SigAction {
             SIG_IGN => SigAction::Ign,
             _ => {
                 let flags = SigActionFlags::from_bits_truncate(input.flags);
+                #[cfg(target_arch = "riscv32")]
+                let flags = flags - SigActionFlags::SA_RESTORER;
                 let mask = SigSet::from(input.mask);
                 SigAction::User {
                     handler_addr: input.handler_ptr,
                     flags,
+                    #[cfg(not(target_arch = "riscv32"))]
                     restorer_addr: input.restorer_ptr,
+                    #[cfg(target_arch = "riscv32")]
+                    restorer_addr: 0,
                     mask,
                 }
             }
@@ -49,25 +54,30 @@ impl SigAction {
             SigAction::Dfl => sigaction_t {
                 handler_ptr: SIG_DFL,
                 flags: 0,
+                #[cfg(not(target_arch = "riscv32"))]
                 restorer_ptr: 0,
-                mask: 0,
+                mask: Default::default(),
                 ..Default::default()
             },
             SigAction::Ign => sigaction_t {
                 handler_ptr: SIG_IGN,
                 flags: 0,
+                #[cfg(not(target_arch = "riscv32"))]
                 restorer_ptr: 0,
-                mask: 0,
+                mask: Default::default(),
                 ..Default::default()
             },
             SigAction::User {
                 handler_addr,
                 flags,
+                #[cfg(not(target_arch = "riscv32"))]
                 restorer_addr,
                 mask,
+                ..
             } => sigaction_t {
                 handler_ptr: *handler_addr,
                 flags: flags.as_u32(),
+                #[cfg(not(target_arch = "riscv32"))]
                 restorer_ptr: *restorer_addr,
                 mask: (*mask).into(),
                 ..Default::default()

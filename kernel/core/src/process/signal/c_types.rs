@@ -13,10 +13,36 @@ use crate::{
     process::{Pid, Uid},
 };
 
+#[cfg(not(target_arch = "riscv32"))]
 pub(crate) type sigset_t = u64;
-// FIXME: this type should be put at suitable place
-pub(crate) type clock_t = i64;
+// Linux sigset_t consists of unsigned-long words, including its alignment.
+#[cfg(target_arch = "riscv32")]
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Pod)]
+pub(crate) struct sigset_t {
+    words: [u32; 2],
+}
 
+#[cfg(target_arch = "riscv32")]
+impl From<super::sig_mask::SigSet> for sigset_t {
+    fn from(mask: super::sig_mask::SigSet) -> Self {
+        let bits = u64::from(mask);
+        Self {
+            words: [bits as u32, (bits >> 32) as u32],
+        }
+    }
+}
+
+#[cfg(target_arch = "riscv32")]
+impl From<sigset_t> for super::sig_mask::SigSet {
+    fn from(mask: sigset_t) -> Self {
+        Self::from(u64::from(mask.words[0]) | (u64::from(mask.words[1]) << 32))
+    }
+}
+// FIXME: this type should be put at suitable place
+pub(crate) type clock_t = isize;
+
+#[cfg(not(target_arch = "riscv32"))]
 #[padding_struct]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
@@ -24,6 +50,16 @@ pub(crate) struct sigaction_t {
     pub handler_ptr: Vaddr,
     pub flags: u32,
     pub restorer_ptr: Vaddr,
+    pub mask: sigset_t,
+}
+
+// RISC-V uses asm-generic/signal.h without SA_RESTORER in its user ABI.
+#[cfg(target_arch = "riscv32")]
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Pod)]
+pub(crate) struct sigaction_t {
+    pub handler_ptr: Vaddr,
+    pub flags: u32,
     pub mask: sigset_t,
 }
 
@@ -86,7 +122,12 @@ impl siginfo_t {
 #[repr(C)]
 #[derive(Clone, Copy)]
 union siginfo_fields_t {
-    bytes: [u8; 128 - size_of::<i32>() * 4],
+    bytes: [u8; 128
+        - if cfg!(target_pointer_width = "32") {
+            12
+        } else {
+            16
+        }],
     common: siginfo_common_t,
     sigfault: siginfo_sigfault_t,
 }
@@ -197,7 +238,7 @@ union siginfo_addr_bnd_t {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(crate) struct ucontext_t {
-    pub uc_flags: u64,
+    pub uc_flags: usize,
     pub uc_link: Vaddr, // *mut ucontext_t
     pub uc_stack: stack_t,
     pub uc_mcontext: mcontext_t,
@@ -208,7 +249,7 @@ pub(crate) struct ucontext_t {
 /// Reference: <https://elixir.bootlin.com/linux/v6.15.7/source/arch/loongarch/include/uapi/asm/ucontext.h>
 /// Reference: <https://elixir.bootlin.com/linux/v6.15.7/source/arch/arm64/include/uapi/asm/ucontext.h>
 #[cfg(any(
-    target_arch = "riscv64",
+    any(target_arch = "riscv32", target_arch = "riscv64"),
     target_arch = "loongarch64",
     target_arch = "aarch64"
 ))]
@@ -216,7 +257,7 @@ pub(crate) struct ucontext_t {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod)]
 pub(crate) struct ucontext_t {
-    pub uc_flags: u64,
+    pub uc_flags: usize,
     pub uc_link: Vaddr, // *mut ucontext_t
     pub uc_stack: stack_t,
     pub uc_sigmask: sigset_t,
@@ -230,7 +271,7 @@ pub(crate) struct ucontext_t {
 //
 // See <https://github.com/rust-lang/rust/issues/61415>.
 #[cfg(any(
-    target_arch = "riscv64",
+    any(target_arch = "riscv32", target_arch = "riscv64"),
     target_arch = "loongarch64",
     target_arch = "aarch64"
 ))]

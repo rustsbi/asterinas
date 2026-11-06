@@ -75,7 +75,11 @@ pub(crate) fn load_elf_to_vmar(
     // the vDSO is mapped after the ELF file, heap, and stack.
     #[cfg(not(target_arch = "loongarch64"))]
     if let Some(vdso_text_base) = map_vdso_to_vmar(vmar) {
-        #[cfg(any(target_arch = "riscv64", target_arch = "aarch64"))]
+        #[cfg(any(
+            target_arch = "riscv32",
+            target_arch = "riscv64",
+            target_arch = "aarch64"
+        ))]
         vmar.process_vm().set_vdso_base(vdso_text_base);
         aux_vec.set(AuxKey::AT_SYSINFO_EHDR, vdso_text_base as u64);
     }

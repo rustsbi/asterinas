@@ -15,6 +15,10 @@ use crate::{
 
 pub(super) fn sys_rt_sigreturn(ctx: &Context, user_ctx: &mut UserContext) -> Result<SyscallReturn> {
     let sig_context_addr = user_ctx.stack_pointer() as Vaddr;
+    #[cfg(target_arch = "riscv32")]
+    let sig_context_addr = sig_context_addr
+        .checked_add(size_of::<crate::process::signal::c_types::siginfo_t>())
+        .ok_or_else(|| Error::with_message(Errno::EFAULT, "signal frame address overflow"))?;
     debug!(
         "sys_rt_sigreturn: sig_context_addr = {:#x}",
         sig_context_addr
@@ -35,7 +39,7 @@ pub(super) fn sys_rt_sigreturn(ctx: &Context, user_ctx: &mut UserContext) -> Res
     // Restore the FPU context.
     let fpu_context_addr = cfg_select! {
         target_arch = "x86_64" => ucontext.uc_mcontext.fpu_context_addr(),
-        any(target_arch = "riscv64", target_arch = "loongarch64", target_arch = "aarch64") => {
+        any(any(target_arch = "riscv32", target_arch = "riscv64"), target_arch = "loongarch64", target_arch = "aarch64") => {
             // In RISC-V/LoongArch64/ARM, the FPU context is placed directly after `ucontext_t` on
             // the signal stack.
             sig_context_addr + size_of::<ucontext_t>()
