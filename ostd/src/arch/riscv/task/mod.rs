@@ -4,7 +4,7 @@
 
 use crate::task::TaskContextApi;
 
-core::arch::global_asm!(include_str!("switch.S"));
+core::arch::global_asm!(include_str!("switch.S"), XLEN = const usize::BITS);
 
 #[repr(C)]
 #[derive(Clone, Debug)]
@@ -27,19 +27,19 @@ impl TaskContext {
 #[repr(C)]
 #[derive(Clone, Debug)]
 struct CalleeRegs {
-    sp: u64,
-    s0: u64,
-    s1: u64,
-    s2: u64,
-    s3: u64,
-    s4: u64,
-    s5: u64,
-    s6: u64,
-    s7: u64,
-    s8: u64,
-    s9: u64,
-    s10: u64,
-    s11: u64,
+    sp: usize,
+    s0: usize,
+    s1: usize,
+    s2: usize,
+    s3: usize,
+    s4: usize,
+    s5: usize,
+    s6: usize,
+    s7: usize,
+    s8: usize,
+    s9: usize,
+    s10: usize,
+    s11: usize,
 }
 
 impl CalleeRegs {
@@ -69,7 +69,7 @@ impl TaskContextApi for TaskContext {
     }
 
     fn set_stack_pointer(&mut self, sp: usize) {
-        self.regs.sp = sp as u64;
+        self.regs.sp = sp;
     }
 }
 

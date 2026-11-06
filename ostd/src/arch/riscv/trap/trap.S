@@ -16,13 +16,23 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-# Constant and Macros for riscv64:
-.equ XLENB, 8
+# Register slots follow the target pointer width; C ABI stacks remain 16-byte aligned.
+.equ XLENB, {XLEN} / 8
+.equ TRAP_STACK_SIZE, (34 * XLENB + 15) & -16
+.equ USER_CALL_STACK_SIZE, (14 * XLENB + 15) & -16
 .macro LOAD_SP a1, a2
+  .if {XLEN} == 64
     ld \a1, \a2*XLENB(sp)
+  .else
+    lw \a1, \a2*XLENB(sp)
+  .endif
 .endm
 .macro STORE_SP a1, a2
+  .if {XLEN} == 64
     sd \a1, \a2*XLENB(sp)
+  .else
+    sw \a1, \a2*XLENB(sp)
+  .endif
 .endm
 
 .text
@@ -38,7 +48,7 @@ trap_entry:
 
 _trap_from_kernel:
     csrr sp, sscratch
-    addi sp, sp, -34 * XLENB
+    addi sp, sp, -TRAP_STACK_SIZE
     # sscratch = previous-sp, sp = kernel-sp
     # fallthrough
 
@@ -92,7 +102,8 @@ _end_trap_from_kernel:
     mv a0, sp                                # first arg is TrapFrame
     lla ra, _trap_return                     # set return address
 .extern trap_handler
-    j trap_handler
+    # LTO can place the Rust handler beyond the +/-1 MiB range of `j`.
+    tail trap_handler
 
 _end_trap_from_user:
     # load callee-saved registers
@@ -112,14 +123,14 @@ _end_trap_from_user:
     LOAD_SP ra, 12
     # not callee-saved, but is used to store the CPU-local storage's base address
     LOAD_SP gp, 13
-    addi sp, sp, 14 * XLENB
+    addi sp, sp, USER_CALL_STACK_SIZE
 
     ret
 
 .global run_user
 run_user: # (regs: &mut RawUserContext)
     # save callee-saved registers
-    addi sp, sp, -14 * XLENB
+    addi sp, sp, -USER_CALL_STACK_SIZE
     STORE_SP s0, 0
     STORE_SP s1, 1
     STORE_SP s2, 2

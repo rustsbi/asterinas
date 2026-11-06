@@ -268,22 +268,36 @@ impl EarlyFrameAllocator {
         let regions = &crate::boot::EARLY_INFO.get().unwrap().memory_regions;
 
         let mut under_4g_range = 0..0;
+        #[cfg(target_pointer_width = "64")]
         let mut max_range = 0..0;
+        #[cfg(target_pointer_width = "32")]
+        let max_range = 0..0;
         for region in regions.iter() {
             if region.typ() != MemoryRegionType::Usable {
                 continue;
             }
-            const PADDR4G: Paddr = 0x1_0000_0000;
-            if region.base() < PADDR4G {
-                let range = region.base()..region.end().min(PADDR4G);
+            #[cfg(target_pointer_width = "32")]
+            {
+                // Every representable physical range lies below 4 GiB.
+                let range = region.base()..region.end();
                 if range.len() > under_4g_range.len() {
                     under_4g_range = range;
                 }
             }
-            if region.end() >= PADDR4G {
-                let range = region.base().max(PADDR4G)..region.end();
-                if range.len() > max_range.len() {
-                    max_range = range;
+            #[cfg(target_pointer_width = "64")]
+            {
+                const PADDR4G: Paddr = 0x1_0000_0000;
+                if region.base() < PADDR4G {
+                    let range = region.base()..region.end().min(PADDR4G);
+                    if range.len() > under_4g_range.len() {
+                        under_4g_range = range;
+                    }
+                }
+                if region.end() >= PADDR4G {
+                    let range = region.base().max(PADDR4G)..region.end();
+                    if range.len() > max_range.len() {
+                        max_range = range;
+                    }
                 }
             }
         }

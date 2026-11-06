@@ -116,7 +116,22 @@ fn set_next_timer_sstc() {
     // only when we're handling a timer interrupt, which is a standard operation
     // specified by RISC-V SSTC extension.
     unsafe {
+        #[cfg(target_arch = "riscv64")]
         asm!("csrrw {}, stimecmp, {}", out(reg) _, in(reg) get_next_when());
+        #[cfg(target_arch = "riscv32")]
+        {
+            let deadline = get_next_when();
+            // Prevent an intermediate 64-bit value from firing the timer early.
+            asm!(
+                "csrw stimecmp, {max}",
+                "csrw stimecmph, {high}",
+                "csrw stimecmp, {low}",
+                max = in(reg) u32::MAX,
+                high = in(reg) (deadline >> 32) as u32,
+                low = in(reg) deadline as u32,
+                options(nostack),
+            );
+        }
     }
 }
 

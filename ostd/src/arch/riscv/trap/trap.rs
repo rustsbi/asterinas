@@ -9,7 +9,7 @@
 //
 // We make the following new changes:
 // * Implement the `trap_handler` of Asterinas.
-// * Remove riscv32 code.
+// * Support RV32 and RV64 register widths.
 // * Move XLENB, LOAD_SP, and STORE_SP into trap.S.
 //
 // These changes are released under the following license:
@@ -37,7 +37,8 @@ pub(in crate::arch) const SSTATUS_SUM: usize = 0b1 << 18;
 global_asm!(
     include_str!("trap.S"),
     SSTATUS_FS_MASK = const SSTATUS_FS_MASK,
-    SSTATUS_SUM = const SSTATUS_SUM
+    SSTATUS_SUM = const SSTATUS_SUM,
+    XLEN = const usize::BITS,
 );
 
 /// Initialize interrupt handling for the current HART.

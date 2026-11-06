@@ -18,7 +18,24 @@ use crate::{
     mm::paddr_to_vaddr,
 };
 
+#[cfg(target_arch = "riscv64")]
 global_asm!(include_str!("bsp_boot.S"));
+#[cfg(target_arch = "riscv32")]
+global_asm!(include_str!("bsp_boot32.S"), early_boot_trap = sym early_boot_trap);
+
+#[cfg(target_arch = "riscv32")]
+extern "C" fn early_boot_trap(cause: usize, epc: usize, tval: usize) -> ! {
+    early_println!(
+        "Early boot trap: scause={:#x}, sepc={:#x}, stval={:#x}",
+        cause,
+        epc,
+        tval
+    );
+    loop {
+        // SAFETY: Interrupts remain disabled on this unrecoverable boot fault.
+        unsafe { core::arch::asm!("wfi") };
+    }
+}
 
 /// The Flattened Device Tree of the platform.
 pub static DEVICE_TREE: Once<Fdt> = Once::new();

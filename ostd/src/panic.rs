@@ -118,7 +118,7 @@ pub fn print_stack_trace() {
         for i in 0..8u16 {
             let reg_name = cfg_select! {
                 target_arch = "x86_64" => gimli::X86_64::register_name(Register(i)),
-                target_arch = "riscv64" => gimli::RiscV::register_name(Register(i)),
+                any(target_arch = "riscv64", target_arch = "riscv32") => gimli::RiscV::register_name(Register(i)),
                 target_arch = "loongarch64" => gimli::LoongArch::register_name(Register(i)),
                 target_arch = "aarch64" => gimli::AArch64::register_name(Register(i)),
                 _ => None,

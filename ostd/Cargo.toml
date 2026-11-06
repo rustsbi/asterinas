@@ -53,7 +53,7 @@ volatile.workspace = true
 x86.workspace = true
 x86_64.workspace = true
 
-[target.riscv64imac-unknown-none-elf.dependencies]
+[target.'cfg(any(target_arch = "riscv32", target_arch = "riscv64"))'.dependencies]
 bit_field.workspace = true
 fdt.workspace = true
 riscv.workspace = true

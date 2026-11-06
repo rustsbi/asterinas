@@ -2,11 +2,11 @@
 
 use crate::arch::trap::SSTATUS_SUM;
 
-core::arch::global_asm!(include_str!("memcpy_fallible.S"), SSTATUS_SUM = const SSTATUS_SUM);
-core::arch::global_asm!(include_str!("memset_fallible.S"), SSTATUS_SUM = const SSTATUS_SUM);
+core::arch::global_asm!(include_str!("memcpy_fallible.S"), SSTATUS_SUM = const SSTATUS_SUM, XLEN = const usize::BITS);
+core::arch::global_asm!(include_str!("memset_fallible.S"), SSTATUS_SUM = const SSTATUS_SUM, XLEN = const usize::BITS);
 
-core::arch::global_asm!(include_str!("atomic_load_fallible.S"), SSTATUS_SUM = const SSTATUS_SUM);
-core::arch::global_asm!(include_str!("atomic_cmpxchg_fallible.S"), SSTATUS_SUM = const SSTATUS_SUM);
+core::arch::global_asm!(include_str!("atomic_load_fallible.S"), SSTATUS_SUM = const SSTATUS_SUM, XLEN = const usize::BITS);
+core::arch::global_asm!(include_str!("atomic_cmpxchg_fallible.S"), SSTATUS_SUM = const SSTATUS_SUM, XLEN = const usize::BITS);
 
 unsafe extern "C" {
     /// Copies `size` bytes from `src` to `dst`. This function works with exception handling

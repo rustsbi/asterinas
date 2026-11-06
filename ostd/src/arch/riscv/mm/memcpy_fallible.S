@@ -30,9 +30,16 @@ memcpy_exit:
 .size __memcpy_fallible, .-__memcpy_fallible
 
 .pushsection .ex_table, "a", @progbits
-    .balign 8
+    .balign {XLEN} / 8
+  .if {XLEN} == 64
     .quad memcpy_load
     .quad memcpy_exit
     .quad memcpy_store
     .quad memcpy_exit
+  .else
+    .word memcpy_load
+    .word memcpy_exit
+    .word memcpy_store
+    .word memcpy_exit
+  .endif
 .popsection
