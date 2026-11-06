@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MPL-2.0
 
-use core::sync::atomic::{AtomicU32, AtomicU64};
+use core::sync::atomic::AtomicU32;
 
 #[cfg(target_arch = "x86_64")]
 use ostd::arch::cpu::context::{FsBase, GsBase};
 use ostd::{
     arch::cpu::context::{FpuContext, UserContext},
     cpu::CpuSet,
-    sync::RwArc,
+    sync::{RwArc, atomic::AtomicU64},
     task::Task,
 };
 use spin::Once;

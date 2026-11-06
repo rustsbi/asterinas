@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0
 
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::Ordering;
 
 use atomic_integer_wrapper::define_atomic_version_of_integer_like_type;
 use bitflags::bitflags;
+use ostd::sync::atomic::AtomicU64;
 
 bitflags! {
     /// Represents a set of Linux capabilities.

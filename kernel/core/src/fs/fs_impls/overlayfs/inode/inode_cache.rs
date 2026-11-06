@@ -19,9 +19,10 @@
 
 #![short_vis_path::add(overlayfs)]
 
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::Ordering;
 
 use hashbrown::HashMap;
+use ostd::sync::atomic::AtomicU64;
 
 use crate::{
     fs::fs_impls::overlayfs::inode::{OverlayInode, identity::ObjectRealId},

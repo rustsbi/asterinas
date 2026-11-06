@@ -2,13 +2,14 @@
 
 use core::{
     ops::RangeInclusive,
-    sync::atomic::{AtomicU32, AtomicU64, Ordering},
+    sync::atomic::{AtomicU32, Ordering},
     time::Duration,
 };
 
 use aster_bigtcp::socket::{
     NeedIfacePoll, TCP_RECV_BUF_LEN, TCP_SEND_BUF_LEN, UDP_RECV_PAYLOAD_LEN, UDP_SEND_PAYLOAD_LEN,
 };
+use ostd::sync::atomic::AtomicU64;
 
 use super::{LingerOption, SocketTimeout};
 use crate::{

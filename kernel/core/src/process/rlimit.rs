@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 // FIXME: The resource limits should be respected by the corresponding subsystems of the kernel.
 
-use core::{
-    array,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use core::{array, sync::atomic::Ordering};
+
+use ostd::sync::atomic::AtomicU64;
 
 use super::process_vm::INIT_STACK_SIZE;
 use crate::{

@@ -7,14 +7,13 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use core::{
-    any::Any,
-    fmt::Debug,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use core::{any::Any, fmt::Debug, sync::atomic::Ordering};
 
 use bitflags::bitflags;
-use ostd::mm::{VmReader, VmWriter};
+use ostd::{
+    mm::{VmReader, VmWriter},
+    sync::atomic::AtomicU64,
+};
 
 use super::{Error, Result, SysAttrSet, SysStr};
 

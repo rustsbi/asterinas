@@ -6,13 +6,10 @@
 //! that are blocked from delivery to a thread. An atomic signal mask
 //! implementation is provided for shared access to signal masks.
 
-use core::{
-    fmt::LowerHex,
-    ops,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use core::{fmt::LowerHex, ops, sync::atomic::Ordering};
 
 use atomic_integer_wrapper::define_atomic_version_of_integer_like_type;
+use ostd::sync::atomic::AtomicU64;
 
 use super::{constants::MIN_STD_SIG_NUM, sig_num::SigNum};
 use crate::prelude::*;

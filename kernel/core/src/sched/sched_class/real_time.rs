@@ -4,13 +4,14 @@ use alloc::{collections::VecDeque, sync::Arc};
 use core::{
     array,
     num::NonZero,
-    sync::atomic::{AtomicU8, AtomicU64, Ordering::Relaxed},
+    sync::atomic::{AtomicU8, Ordering::Relaxed},
 };
 
 use aster_util::ranged_integer::RangedU8;
 use bitvec::{BitArr, bitarr};
 use ostd::{
     cpu::CpuId,
+    sync::atomic::AtomicU64,
     task::{
         Task,
         scheduler::{EnqueueFlags, UpdateFlags},

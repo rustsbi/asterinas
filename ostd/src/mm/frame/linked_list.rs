@@ -8,7 +8,7 @@
 use core::{
     ops::{Deref, DerefMut},
     ptr::NonNull,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::atomic::Ordering,
 };
 
 use super::{
@@ -20,6 +20,7 @@ use crate::{
     arch::mm::PagingConsts,
     mm::{Paddr, Vaddr},
     panic::abort,
+    sync::atomic::AtomicU64,
 };
 
 /// A linked list of frames.

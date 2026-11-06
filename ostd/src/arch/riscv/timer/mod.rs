@@ -2,16 +2,14 @@
 
 //! The timer support.
 
-use core::{
-    arch::asm,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use core::{arch::asm, sync::atomic::Ordering};
 
 use spin::Once;
 
 use crate::{
     arch::{self, boot::DEVICE_TREE, cpu::extension::IsaExtensions, trap::TrapFrame},
     irq::IrqLine,
+    sync::atomic::AtomicU64,
     timer::TIMER_FREQ,
 };
 

@@ -44,7 +44,7 @@ use core::{
     fmt::Debug,
     mem::{ManuallyDrop, MaybeUninit},
     ops::Range,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::atomic::Ordering,
 };
 
 use align_ext::AlignExt;
@@ -61,13 +61,14 @@ use crate::{
         page_table::boot_pt,
     },
     panic::abort,
+    sync::atomic::AtomicU64,
     util::ops::range_difference,
 };
 
 /// The maximum number of bytes of the metadata of a frame.
 pub const FRAME_METADATA_MAX_SIZE: usize = META_SLOT_SIZE
     - size_of::<AtomicU64>()
-    - size_of::<FrameMetaVtablePtr>()
+    - size_of::<FrameMetaVtablePtr>().next_multiple_of(align_of::<AtomicU64>())
     - size_of::<AtomicU64>();
 /// The maximum alignment in bytes of the metadata of a frame.
 pub const FRAME_METADATA_MAX_ALIGN: usize = META_SLOT_SIZE;

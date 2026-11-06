@@ -5,7 +5,7 @@ use alloc::{
     sync::{Arc, Weak},
     vec::Vec,
 };
-use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use aster_core::{
     current,
@@ -26,7 +26,7 @@ use atomic_integer_wrapper::define_atomic_version_of_integer_like_type;
 use hashbrown::HashMap;
 use ostd::{
     mm::{PAGE_SIZE, VmReader, VmWriter},
-    sync::Mutex,
+    sync::{Mutex, atomic::AtomicU64},
 };
 use sparse_id_alloc::SparseIdAlloc;
 

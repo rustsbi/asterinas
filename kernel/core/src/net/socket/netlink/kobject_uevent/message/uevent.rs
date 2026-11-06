@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 
-use core::{
-    fmt::Display,
-    str::FromStr,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use core::{fmt::Display, str::FromStr, sync::atomic::Ordering};
+
+use ostd::sync::atomic::AtomicU64;
 
 use super::syn_uevent::{SyntheticUevent, Uuid};
 use crate::prelude::*;

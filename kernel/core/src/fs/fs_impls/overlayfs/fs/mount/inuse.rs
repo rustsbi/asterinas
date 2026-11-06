@@ -18,7 +18,9 @@
 #![short_vis_path::add(overlayfs)]
 
 use alloc::{boxed::ThinBox, format};
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::Ordering;
+
+use ostd::sync::atomic::AtomicU64;
 
 use super::options::UuidMode;
 use crate::{

@@ -20,10 +20,7 @@
 //! As such, this module provides [`AnonDeviceId`] to acquire and recycle
 //! anonymous device IDs.
 
-use core::{
-    sync::atomic::{AtomicU64, Ordering},
-    time::Duration,
-};
+use core::{sync::atomic::Ordering, time::Duration};
 
 pub(crate) use allocator::AnonDeviceId;
 pub(crate) use anon_inodefs::AnonInodeFs;
@@ -31,6 +28,7 @@ use device_id::DeviceId;
 pub(in crate::fs) use nsfs::NsInode;
 pub(crate) use nsfs::{NsCommonOps, NsFile, NsType, StashedDentry};
 pub(in crate::fs) use nullfs::NullFs;
+use ostd::sync::atomic::AtomicU64;
 pub(crate) use pidfdfs::PidfdFs;
 pub(in crate::fs) use pipefs::PipeFs;
 use pipefs::PipeFsType;

@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
-use core::{
-    sync::atomic::{AtomicU64, Ordering},
-    time::Duration,
-};
+use core::{sync::atomic::Ordering, time::Duration};
 
 use align_ext::AlignExt;
 use aster_block::SECTOR_SIZE;
@@ -12,7 +9,7 @@ use device_id::DeviceId;
 use hashbrown::HashMap;
 use ostd::{
     mm::VmIo,
-    sync::{PreemptDisabled, RwLockWriteGuard},
+    sync::{PreemptDisabled, RwLockWriteGuard, atomic::AtomicU64},
 };
 
 use super::{memfd::MemfdInode, xattr::RamXattr, *};

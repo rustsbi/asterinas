@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use alloc::{collections::btree_set::BTreeSet, sync::Arc, vec::Vec};
-use core::{
-    borrow::Borrow,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use core::{borrow::Borrow, sync::atomic::Ordering};
 
+use ostd::sync::atomic::AtomicU64;
 use smoltcp::iface::Route;
 
 use crate::{

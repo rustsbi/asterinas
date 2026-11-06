@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::Ordering;
 
+use ostd::sync::atomic::AtomicU64;
 use template::{
     ListedEntry, ProcDir, ProcDirOps, ReaddirEntry, StaticDirEntry, keyed_readdir_entries,
     listed_entries_from_table, lookup_child_from_table, sequential_readdir_entries,

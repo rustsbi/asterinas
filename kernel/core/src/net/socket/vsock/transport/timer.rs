@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use alloc::{sync::Arc, vec::Vec};
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::Ordering;
 
 use aster_softirq::{BottomHalfDisabled, Taskless};
-use ostd::sync::SpinLock;
+use ostd::sync::{SpinLock, atomic::AtomicU64};
 use spin::Once;
 
 use crate::net::socket::vsock::transport::{conn_id::ConnId, space::vsock_space};

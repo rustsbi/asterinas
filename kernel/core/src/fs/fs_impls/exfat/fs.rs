@@ -3,11 +3,7 @@
 #![expect(dead_code)]
 #![expect(unused_variables)]
 
-use core::{
-    num::NonZeroUsize,
-    ops::Range,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use core::{num::NonZeroUsize, ops::Range, sync::atomic::Ordering};
 
 use aster_block::{
     BlockDevice,
@@ -19,6 +15,7 @@ use hashbrown::HashMap;
 use io_util::batch::IoBatch;
 use lru::LruCache;
 pub(super) use ostd::mm::VmIo;
+use ostd::sync::atomic::AtomicU64;
 
 use super::{
     bitmap::ExfatBitmap,

@@ -75,10 +75,11 @@
 
 #![short_vis_path::add(overlayfs)]
 
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::Ordering;
 
 use device_id::DeviceId;
 use hashbrown::HashMap;
+use ostd::sync::atomic::AtomicU64;
 
 use super::{copyup::workdir::WorkdirTemp, xattr::OverlayXattrType};
 use crate::{

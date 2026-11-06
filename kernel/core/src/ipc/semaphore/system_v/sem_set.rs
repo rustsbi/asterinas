@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::Ordering;
 
 use aster_rights::ReadOp;
+use ostd::sync::atomic::AtomicU64;
 
 use super::sem::{
     PendingBlocker, PendingOp, Semaphore, Status, update_pending_alter, wake_const_ops,
